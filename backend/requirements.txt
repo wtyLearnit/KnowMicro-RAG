@@ -1,4 +1,4 @@
-# 柏拉图之窗 - Backend Dependencies
+﻿# 苏格拉底之窗 - Backend Dependencies
 # Core
 fastapi==0.115.6
 uvicorn[standard]==0.34.0

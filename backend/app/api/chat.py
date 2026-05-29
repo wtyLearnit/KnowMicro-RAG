@@ -1,5 +1,5 @@
-"""
-柏拉图之窗 - Chat & Search API Routes
+﻿"""
+苏格拉底之窗 - Chat & Search API Routes
 """
 from typing import List
 import json
@@ -122,6 +122,7 @@ async def chat(
         user_message=req.message,
         history=history,
         top_k=req.top_k,
+        mode=req.mode,
     )
 
     # Save assistant message
@@ -202,6 +203,7 @@ async def chat_stream(
                 user_message=req.message,
                 history=history,
                 top_k=req.top_k,
+                mode=req.mode,
             ):
                 if event["type"] == "chunk":
                     full_content += event["content"]

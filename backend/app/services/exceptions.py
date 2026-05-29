@@ -1,5 +1,5 @@
-"""
-柏拉图之窗 - Service Exceptions
+﻿"""
+苏格拉底之窗 - Service Exceptions
 """
 from typing import Optional
 import httpx

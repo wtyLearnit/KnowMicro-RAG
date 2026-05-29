@@ -1,12 +1,14 @@
 /* StarField - Breathing star background */
 import { useEffect, useRef } from 'react'
+import { useTheme } from './ThemeContext'
 
 export function StarField() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const { theme } = useTheme()
 
   useEffect(() => {
     const canvas = canvasRef.current
-    if (!canvas) return
+    if (!canvas || theme === 'light') return
 
     const ctx = canvas.getContext('2d')
     if (!ctx) return
@@ -53,7 +55,9 @@ export function StarField() {
       cancelAnimationFrame(animId)
       window.removeEventListener('resize', resize)
     }
-  }, [])
+  }, [theme])
+
+  if (theme === 'light') return null
 
   return (
     <canvas

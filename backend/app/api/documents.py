@@ -1,5 +1,5 @@
-"""
-柏拉图之窗 - Document API Routes
+﻿"""
+苏格拉底之窗 - Document API Routes
 """
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File

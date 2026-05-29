@@ -1,5 +1,5 @@
-"""
-柏拉图之窗 - Database Models (SQLAlchemy)
+﻿"""
+苏格拉底之窗 - Database Models (SQLAlchemy)
 """
 import uuid
 from datetime import datetime, timezone

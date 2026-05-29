@@ -1,5 +1,5 @@
-"""
-柏拉图之窗 - LLM Service
+﻿"""
+苏格拉底之窗 - LLM Service
 Supports any OpenAI-compatible chat completion API with streaming.
 """
 from typing import AsyncIterator, List, Dict, Any
@@ -21,20 +21,24 @@ class LLMService:
         self.max_tokens = settings.llm_max_tokens
         self.temperature = settings.llm_temperature
         self.system_prompt = settings.system_prompt
+        self.direct_prompt = settings.direct_prompt
 
     def _build_messages(
         self,
         user_message: str,
         history: List[Dict[str, str]],
         context: str = "",
+        mode: str = "socratic",
     ) -> List[Dict[str, str]]:
         """Build the message list with system prompt, context, and history."""
-        messages = [{"role": "system", "content": self.system_prompt}]
+        prompt = self.system_prompt if mode == "socratic" else self.direct_prompt
+        messages = [{"role": "system", "content": prompt}]
 
         if context:
+            context_prefix = "以下是知识库中与当前问题最相关的内容，请基于这些内容进行教学：\n\n" if mode == "socratic" else "以下是知识库中与当前问题最相关的内容，请基于这些内容回答：\n\n"
             messages.append({
                 "role": "system",
-                "content": f"以下是知识库中与当前问题最相关的内容，请基于这些内容进行教学：\n\n{context}"
+                "content": f"{context_prefix}{context}"
             })
 
         # Add conversation history (last N turns)
@@ -48,9 +52,10 @@ class LLMService:
         user_message: str,
         history: List[Dict[str, str]],
         context: str = "",
+        mode: str = "socratic",
     ) -> Dict[str, Any]:
         """Non-streaming chat completion."""
-        messages = self._build_messages(user_message, history, context)
+        messages = self._build_messages(user_message, history, context, mode)
 
         try:
             async with httpx.AsyncClient(timeout=120.0, trust_env=False) as client:
@@ -99,9 +104,10 @@ class LLMService:
         user_message: str,
         history: List[Dict[str, str]],
         context: str = "",
+        mode: str = "socratic",
     ) -> AsyncIterator[str]:
         """Streaming chat completion. Yields content chunks."""
-        messages = self._build_messages(user_message, history, context)
+        messages = self._build_messages(user_message, history, context, mode)
 
         try:
             async with httpx.AsyncClient(timeout=120.0, trust_env=False) as client:

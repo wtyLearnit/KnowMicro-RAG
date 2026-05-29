@@ -1,5 +1,5 @@
-"""
-柏拉图之窗 - Embedding Service
+﻿"""
+苏格拉底之窗 - Embedding Service
 Supports any OpenAI-compatible embedding API.
 """
 import asyncio
@@ -11,7 +11,7 @@ from app.services.exceptions import (
     ExternalServiceError, extract_api_error, describe_exception as _describe,
 )
 
-logger = logging.getLogger("platos_window")
+logger = logging.getLogger("Socratess_window")
 
 
 class EmbeddingService:

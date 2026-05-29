@@ -1,4 +1,4 @@
-/* 柏拉图之窗 - Types */
+﻿/* 苏格拉底之窗 - Types */
 
 export interface Collection {
   id: string;

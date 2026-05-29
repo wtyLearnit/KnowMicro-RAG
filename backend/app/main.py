@@ -1,5 +1,5 @@
-"""
-柏拉图之窗 (Plato's Window) - Main Application
+﻿"""
+苏格拉底之窗 (Socrates' Window) - Main Application
 RAG-powered intelligent learning system.
 """
 import logging
@@ -16,7 +16,7 @@ from app.api.documents import router as document_router
 from app.api.chat import chat_router, search_router, conv_router
 from app.api.system import router as system_router
 
-logger = logging.getLogger("platos_window")
+logger = logging.getLogger("Socratess_window")
 
 
 @asynccontextmanager
@@ -24,17 +24,17 @@ async def lifespan(app: FastAPI):
     """Startup / shutdown lifecycle."""
     # Startup
     await init_db()
-    logger.info("柏拉图之窗 已启动")
+    logger.info("苏格拉底之窗 已启动")
     logger.info("LLM: %s", settings.llm_model)
     logger.info("Embed: %s (%dd)", settings.embed_model, settings.embed_dimensions)
     logger.info("文档: http://%s:%d/docs", settings.host, settings.port)
     yield
     # Shutdown
-    logger.info("柏拉图之窗 已停止")
+    logger.info("苏格拉底之窗 已停止")
 
 
 app = FastAPI(
-    title="柏拉图之窗",
+    title="苏格拉底之窗",
     description="RAG 驱动的智能学习系统 —— 让知识经由理性之光折射为真知",
     version="0.1.0",
     lifespan=lifespan,
@@ -67,7 +67,7 @@ app.include_router(system_router)
 @app.get("/")
 async def root():
     return {
-        "name": "柏拉图之窗",
+        "name": "苏格拉底之窗",
         "version": "0.1.0",
         "description": "RAG-powered intelligent learning system",
         "docs": "/docs",

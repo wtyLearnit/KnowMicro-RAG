@@ -1,4 +1,4 @@
-/* 柏拉图之窗 - API Service */
+﻿/* 苏格拉底之窗 - API Service */
 import axios from 'axios';
 import type {
   Collection, Document, Conversation, Message,
@@ -54,6 +54,7 @@ export const streamMessage = (
     message: string;
     conversation_id?: string;
     top_k?: number;
+    mode?: 'socratic' | 'direct';
   },
   onChunk: (text: string) => void,
   onSources: (sources: any[]) => void,

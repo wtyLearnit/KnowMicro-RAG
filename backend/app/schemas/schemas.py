@@ -1,5 +1,5 @@
-"""
-柏拉图之窗 - Pydantic Schemas
+﻿"""
+苏格拉底之窗 - Pydantic Schemas
 """
 from datetime import datetime
 from typing import Optional, List, Dict, Any
@@ -81,6 +81,7 @@ class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1)
     conversation_id: Optional[str] = None
     top_k: int = Field(default=5, ge=1, le=20)
+    mode: str = Field(default="socratic", pattern="^(socratic|direct)$")
 
 
 class SourceItem(BaseModel):

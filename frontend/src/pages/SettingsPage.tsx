@@ -1,17 +1,37 @@
-/* 柏拉图之窗 - Settings Page */
+﻿/* 苏格拉底之窗 - Settings Page */
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import {
   Cpu, Brain, Scissors, Server, AlertCircle,
   Database, Zap, MessageSquare, BookOpen, FileText,
+  Palette, Sun, Moon, Check,
 } from 'lucide-react'
 import { getStats, getConfig } from '../services/api'
+import { useTheme } from '../components/ThemeContext'
 import type { Stats, SystemConfig } from '../types'
+
+const themes = [
+  {
+    id: 'cosmos' as const,
+    name: '深邃蓝',
+    desc: '宇宙深蓝渐变，沉浸式暗色体验',
+    icon: Moon,
+    colors: ['#050814', '#0A1128', '#3B82F6', '#A78BFA'],
+  },
+  {
+    id: 'light' as const,
+    name: '晨光白',
+    desc: '清爽明亮，适合日间使用',
+    icon: Sun,
+    colors: ['#F8FAFC', '#F1F5F9', '#2563EB', '#7C3AED'],
+  },
+]
 
 export function SettingsPage() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [config, setConfig] = useState<SystemConfig | null>(null)
   const [envMissing, setEnvMissing] = useState(false)
+  const { theme, setTheme } = useTheme()
 
   useEffect(() => {
     getStats().then(setStats).catch(() => {})
@@ -42,20 +62,88 @@ export function SettingsPage() {
     >
       {/* Header */}
       <motion.div variants={item}>
-        <h1 className="text-2xl font-serif font-bold text-white flex items-center gap-2">
-          <Cpu size={24} className="text-nebula-blue" />
+        <h1 className="text-2xl font-serif font-bold flex items-center gap-2">
+          <Cpu size={24} className="text-[var(--accent-blue)]" />
           系统设置
         </h1>
-        <p className="text-cosmos-500 text-sm mt-1">
+        <p className="text-[var(--text-muted)] text-sm mt-1">
           查看当前配置和系统状态。修改配置请编辑后端 .env 文件。
         </p>
+      </motion.div>
+
+      {/* Theme Selection */}
+      <motion.div variants={item} className="glass-card">
+        <h3 className="text-sm font-medium flex items-center gap-2 mb-5" style={{ color: 'var(--text-secondary)' }}>
+          <Palette size={16} className="text-[var(--accent-purple)]" />
+          主题风格
+        </h3>
+        <div className="grid sm:grid-cols-2 gap-4">
+          {themes.map(t => {
+            const Icon = t.icon
+            const isActive = theme === t.id
+            return (
+              <button
+                key={t.id}
+                onClick={() => setTheme(t.id)}
+                className={`
+                  relative rounded-xl p-4 text-left transition-all duration-300
+                  ${isActive
+                    ? 'ring-2 ring-[var(--accent-blue)] shadow-lg'
+                    : 'hover:scale-[1.02]'
+                  }
+                `}
+                style={{
+                  background: isActive
+                    ? 'var(--bg-card-hover)'
+                    : 'var(--bg-card)',
+                  border: `1px solid ${isActive ? 'var(--accent-blue)' : 'var(--border-glass)'}`,
+                }}
+              >
+                {/* Color preview */}
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="flex gap-1.5">
+                    {t.colors.map((c, i) => (
+                      <div
+                        key={i}
+                        className="w-5 h-5 rounded-full border"
+                        style={{
+                          backgroundColor: c,
+                          borderColor: 'var(--border-glass)',
+                        }}
+                      />
+                    ))}
+                  </div>
+                  {isActive && (
+                    <div className="ml-auto w-5 h-5 rounded-full bg-[var(--accent-blue)] flex items-center justify-center">
+                      <Check size={12} className="text-white" />
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2 mb-1">
+                  <Icon size={16} style={{ color: 'var(--text-secondary)' }} />
+                  <span className="font-medium text-sm" style={{ color: 'var(--text-primary)' }}>
+                    {t.name}
+                  </span>
+                </div>
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  {t.desc}
+                </p>
+              </button>
+            )
+          })}
+        </div>
       </motion.div>
 
       {/* Connection Status */}
       {envMissing && (
         <motion.div
           variants={item}
-          className="bg-red-900/20 border border-red-500/20 rounded-xl p-4 flex items-start gap-3"
+          className="rounded-xl p-4 flex items-start gap-3"
+          style={{
+            background: 'rgba(239, 68, 68, 0.1)',
+            border: '1px solid rgba(239, 68, 68, 0.2)',
+          }}
         >
           <AlertCircle size={20} className="text-red-400 flex-shrink-0 mt-0.5" />
           <p className="text-red-300 text-sm">
@@ -66,58 +154,58 @@ export function SettingsPage() {
 
       {/* Config Cards */}
       <motion.div variants={item} className="grid sm:grid-cols-2 gap-4">
-        <div className="glass-card group hover:border-nebula-blue/20">
-          <div className="w-10 h-10 rounded-lg bg-nebula-blue/10 flex items-center justify-center mb-3
-                        border border-nebula-blue/20 group-hover:border-nebula-blue/30 transition-colors">
-            <Cpu size={20} className="text-nebula-blue" />
+        <div className="glass-card group" style={{ '--hover-border': 'var(--accent-blue)' } as any}>
+          <div className="w-10 h-10 rounded-lg flex items-center justify-center mb-3"
+               style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)' }}>
+            <Cpu size={20} className="text-[var(--accent-blue)]" />
           </div>
-          <h3 className="text-xs font-medium text-cosmos-500 mb-1">LLM 模型</h3>
-          <p className="text-lg font-mono text-white">
+          <h3 className="text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>LLM 模型</h3>
+          <p className="text-lg font-mono" style={{ color: 'var(--text-primary)' }}>
             {config?.llm_model ?? '未配置'}
           </p>
-          <p className="text-xs text-cosmos-600 mt-1">
+          <p className="text-xs mt-1" style={{ color: 'var(--text-dim)' }}>
             对话生成使用的大语言模型
           </p>
         </div>
 
-        <div className="glass-card group hover:border-nebula-purple/20">
-          <div className="w-10 h-10 rounded-lg bg-nebula-purple/10 flex items-center justify-center mb-3
-                        border border-nebula-purple/20 group-hover:border-nebula-purple/30 transition-colors">
-            <Brain size={20} className="text-nebula-purple" />
+        <div className="glass-card group">
+          <div className="w-10 h-10 rounded-lg flex items-center justify-center mb-3"
+               style={{ background: 'rgba(167,139,250,0.1)', border: '1px solid rgba(167,139,250,0.2)' }}>
+            <Brain size={20} className="text-[var(--accent-purple)]" />
           </div>
-          <h3 className="text-xs font-medium text-cosmos-500 mb-1">Embedding 模型</h3>
-          <p className="text-lg font-mono text-white">
+          <h3 className="text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>Embedding 模型</h3>
+          <p className="text-lg font-mono" style={{ color: 'var(--text-primary)' }}>
             {config?.embed_model ?? '未配置'}
           </p>
-          <p className="text-xs text-cosmos-600 mt-1">
+          <p className="text-xs mt-1" style={{ color: 'var(--text-dim)' }}>
             {config?.embed_dimensions ?? '?'} 维向量
           </p>
         </div>
 
-        <div className="glass-card group hover:border-nebula-cyan/20">
-          <div className="w-10 h-10 rounded-lg bg-nebula-cyan/10 flex items-center justify-center mb-3
-                        border border-nebula-cyan/20 group-hover:border-nebula-cyan/30 transition-colors">
-            <Scissors size={20} className="text-nebula-cyan" />
+        <div className="glass-card group">
+          <div className="w-10 h-10 rounded-lg flex items-center justify-center mb-3"
+               style={{ background: 'rgba(34,211,238,0.1)', border: '1px solid rgba(34,211,238,0.2)' }}>
+            <Scissors size={20} className="text-[var(--accent-cyan)]" />
           </div>
-          <h3 className="text-xs font-medium text-cosmos-500 mb-1">分块设置</h3>
-          <p className="text-lg font-mono text-white">
+          <h3 className="text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>分块设置</h3>
+          <p className="text-lg font-mono" style={{ color: 'var(--text-primary)' }}>
             {config?.chunk_size ?? '?'} / {config?.chunk_overlap ?? '?'}
           </p>
-          <p className="text-xs text-cosmos-600 mt-1">
+          <p className="text-xs mt-1" style={{ color: 'var(--text-dim)' }}>
             分块大小 / 重叠字符数
           </p>
         </div>
 
-        <div className="glass-card group hover:border-nebula-gold/20">
-          <div className="w-10 h-10 rounded-lg bg-nebula-gold/10 flex items-center justify-center mb-3
-                        border border-nebula-gold/20 group-hover:border-nebula-gold/30 transition-colors">
-            <Server size={20} className="text-nebula-gold" />
+        <div className="glass-card group">
+          <div className="w-10 h-10 rounded-lg flex items-center justify-center mb-3"
+               style={{ background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.2)' }}>
+            <Server size={20} className="text-[var(--accent-gold)]" />
           </div>
-          <h3 className="text-xs font-medium text-cosmos-500 mb-1">向量数据库</h3>
-          <p className="text-lg font-mono text-white">
+          <h3 className="text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>向量数据库</h3>
+          <p className="text-lg font-mono" style={{ color: 'var(--text-primary)' }}>
             ChromaDB
           </p>
-          <p className="text-xs text-cosmos-600 mt-1">
+          <p className="text-xs mt-1" style={{ color: 'var(--text-dim)' }}>
             {stats?.vector_count ?? 0} 个向量片段
           </p>
         </div>
@@ -126,25 +214,25 @@ export function SettingsPage() {
       {/* Stats Summary */}
       {stats && (
         <motion.div variants={item} className="glass-card">
-          <h3 className="text-sm font-medium text-cosmos-300 mb-5 flex items-center gap-2">
-            <Zap size={16} className="text-nebula-gold" />
+          <h3 className="text-sm font-medium flex items-center gap-2 mb-5" style={{ color: 'var(--text-secondary)' }}>
+            <Zap size={16} className="text-[var(--accent-gold)]" />
             系统概览
           </h3>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 text-center">
             {[
-              { label: '知识库', value: stats.collection_count, icon: Database, color: 'text-nebula-blue' },
-              { label: '文档', value: stats.document_count, icon: FileText, color: 'text-nebula-cyan' },
-              { label: '向量片段', value: stats.vector_count, icon: Zap, color: 'text-nebula-purple' },
-              { label: '对话', value: stats.conversation_count, icon: MessageSquare, color: 'text-nebula-gold' },
+              { label: '知识库', value: stats.collection_count, icon: Database, color: 'var(--accent-blue)' },
+              { label: '文档', value: stats.document_count, icon: FileText, color: 'var(--accent-cyan)' },
+              { label: '向量片段', value: stats.vector_count, icon: Zap, color: 'var(--accent-purple)' },
+              { label: '对话', value: stats.conversation_count, icon: MessageSquare, color: 'var(--accent-gold)' },
             ].map(s => {
               const Icon = s.icon
               return (
                 <div key={s.label} className="space-y-2">
-                  <Icon size={20} className={`mx-auto ${s.color}`} />
-                  <div className="text-2xl font-serif font-bold text-white">
+                  <Icon size={20} className="mx-auto" style={{ color: s.color }} />
+                  <div className="text-2xl font-serif font-bold" style={{ color: 'var(--text-primary)' }}>
                     {s.value}
                   </div>
-                  <div className="text-xs text-cosmos-500">{s.label}</div>
+                  <div className="text-xs" style={{ color: 'var(--text-muted)' }}>{s.label}</div>
                 </div>
               )
             })}
@@ -154,33 +242,40 @@ export function SettingsPage() {
 
       {/* System Prompt Preview */}
       <motion.div variants={item} className="glass-card">
-        <h3 className="text-sm font-medium text-cosmos-300 mb-4 flex items-center gap-2">
-          <BookOpen size={16} className="text-nebula-blue" />
-          系统提示词 · 柏拉图的教学之道
+        <h3 className="text-sm font-medium flex items-center gap-2 mb-4" style={{ color: 'var(--text-secondary)' }}>
+          <BookOpen size={16} className="text-[var(--accent-blue)]" />
+          系统提示词 · 苏格拉底的教学之道
         </h3>
-        <div className="bg-cosmos-950 rounded-lg p-5 text-sm text-cosmos-400 leading-relaxed max-h-64
-                      overflow-y-auto border border-glass-border">
-          <p className="mb-3 text-cosmos-300">
-            「你是「柏拉图」，一位生活在数字时代的古希腊哲人导师。」
+        <div className="rounded-lg p-5 text-sm leading-relaxed max-h-64 overflow-y-auto"
+             style={{
+               background: 'var(--bg-input)',
+               border: '1px solid var(--border-glass)',
+               color: 'var(--text-secondary)',
+             }}>
+          <p className="mb-3" style={{ color: 'var(--text-primary)' }}>
+            「你是「苏格拉底」，一位生活在数字时代的古希腊哲人导师。」
           </p>
           <p className="mb-3">
-            <strong className="text-nebula-blue">苏格拉底式追问</strong>：当学习者提问，先不给出完整答案，
+            <strong className="text-[var(--accent-blue)]">苏格拉底式追问</strong>：当学习者提问，先不给出完整答案，
             用层层递进的问题引导对方自己发现答案。
           </p>
           <p className="mb-3">
-            <strong className="text-nebula-cyan">从具体升到抽象</strong>：将具体问题与底层原理联系起来。
+            <strong className="text-[var(--accent-cyan)]">从具体升到抽象</strong>：将具体问题与底层原理联系起来。
           </p>
           <p className="mb-3">
-            <strong className="text-nebula-purple">跨域联结</strong>：主动指出当前知识与其它领域的同构关系。
+            <strong className="text-[var(--accent-purple)]">跨域联结</strong>：主动指出当前知识与其它领域的同构关系。
           </p>
           <p className="mb-3">
-            <strong className="text-nebula-gold">知晓无知</strong>：遇到不确定的内容时坦然承认。
+            <strong className="text-[var(--accent-gold)]">知晓无知</strong>：遇到不确定的内容时坦然承认。
+          </p>
+          <p className="mb-3">
+            <strong className="text-[var(--accent-cyan)]">知识融合</strong>：结合知识库与自身知识，检测过时内容并修正。
           </p>
           <p>
-            <strong className="text-nebula-blue">对话式节奏</strong>：有温度、有停顿、有留白。
+            <strong className="text-[var(--accent-blue)]">对话式节奏</strong>：有温度、有停顿、有留白。
           </p>
         </div>
-        <p className="text-xs text-cosmos-600 mt-3">
+        <p className="text-xs mt-3" style={{ color: 'var(--text-dim)' }}>
           完整提示词见 backend/app/config.py 中的 system_prompt 配置
         </p>
       </motion.div>

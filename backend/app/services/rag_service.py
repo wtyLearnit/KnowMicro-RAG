@@ -1,5 +1,5 @@
-"""
-柏拉图之窗 - RAG Service
+﻿"""
+苏格拉底之窗 - RAG Service
 Orchestrates retrieval + generation pipeline.
 """
 from typing import List, Dict, Any, AsyncIterator
@@ -156,12 +156,13 @@ class RAGService:
         user_message: str,
         history: List[Dict[str, str]],
         top_k: int = 5,
+        mode: str = "socratic",
     ) -> Dict[str, Any]:
         """Non-streaming RAG query: retrieve → generate."""
         retrieved = await self.retrieve(collection_id, user_message, top_k)
         context = self.build_context(retrieved)
 
-        response = await llm_service.chat(user_message, history, context)
+        response = await llm_service.chat(user_message, history, context, mode)
 
         return {
             "content": response["content"],
@@ -183,6 +184,7 @@ class RAGService:
         user_message: str,
         history: List[Dict[str, str]],
         top_k: int = 5,
+        mode: str = "socratic",
     ) -> AsyncIterator[Dict[str, Any]]:
         """
         Streaming RAG query.
@@ -192,7 +194,7 @@ class RAGService:
         context = self.build_context(retrieved)
 
         # Stream LLM response
-        async for chunk in llm_service.chat_stream(user_message, history, context):
+        async for chunk in llm_service.chat_stream(user_message, history, context, mode):
             yield {"type": "chunk", "content": chunk}
 
         # Yield sources at the end

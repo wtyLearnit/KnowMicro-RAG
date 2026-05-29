@@ -1,5 +1,5 @@
-"""
-柏拉图之窗 - Admin & System Routes
+﻿"""
+苏格拉底之窗 - Admin & System Routes
 """
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -50,4 +50,4 @@ async def get_config():
 @router.get("/health")
 async def health_check():
     """Health check endpoint."""
-    return {"status": "ok", "service": "柏拉图之窗"}
+    return {"status": "ok", "service": "苏格拉底之窗"}

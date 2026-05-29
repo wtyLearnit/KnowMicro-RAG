@@ -1,5 +1,5 @@
-"""
-柏拉图之窗 - Document Processing Service
+﻿"""
+苏格拉底之窗 - Document Processing Service
 Parse documents, extract text, chunk, and prepare for vector storage.
 """
 import io

@@ -1,4 +1,4 @@
-/* 柏拉图之窗 - Knowledge Base Management Page */
+﻿/* 苏格拉底之窗 - Knowledge Base Management Page */
 import { useEffect, useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -109,11 +109,11 @@ export function KnowledgeBasePage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-serif font-bold text-white flex items-center gap-2">
-            <Database size={24} className="text-nebula-blue" />
+          <h1 className="text-2xl font-serif font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+            <Database size={24} className="text-[var(--accent-blue)]" />
             知识库管理
           </h1>
-          <p className="text-cosmos-500 text-sm mt-1">
+          <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
             创建知识库，上传学习资料，构建你的专属知识体系
           </p>
         </div>
@@ -126,48 +126,51 @@ export function KnowledgeBasePage() {
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Collections list */}
         <div className="lg:col-span-1 space-y-3">
-          <h2 className="text-xs font-medium text-cosmos-500 uppercase tracking-wider px-1">
+          <h2 className="text-xs font-medium uppercase tracking-wider px-1" style={{ color: 'var(--text-muted)' }}>
             知识库列表
           </h2>
           {collections.length === 0 ? (
             <div className="glass-card text-center py-10">
-              <HardDrive size={32} className="mx-auto mb-3 text-cosmos-700" />
-              <p className="text-cosmos-500 text-sm">还没有知识库</p>
-              <p className="text-cosmos-600 text-xs mt-1">点击上方按钮创建</p>
+              <HardDrive size={32} className="mx-auto mb-3" style={{ color: 'var(--text-dim)' }} />
+              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>还没有知识库</p>
+              <p className="text-xs mt-1" style={{ color: 'var(--text-dim)' }}>点击上方按钮创建</p>
             </div>
           ) : (
             <AnimatePresence>
-              {collections.map(col => (
-                <motion.div
-                  key={col.id}
-                  layout
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  onClick={() => setSelectedCollectionId(col.id)}
-                  className={`
-                    glass-card-hover flex items-center justify-between
-                    ${selectedCollectionId === col.id
-                      ? 'ring-1 ring-nebula-blue/40 border-nebula-blue/30 bg-nebula-blue/5'
-                      : ''
-                    }
-                  `}
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="text-2xl">{col.icon}</span>
-                    <div className="min-w-0">
-                      <h3 className="font-medium text-white truncate">{col.name}</h3>
-                      <p className="text-xs text-cosmos-500">{col.document_count} 份文档</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); handleDeleteCollection(col.id, col.name) }}
-                    className="btn-ghost text-cosmos-600 hover:text-red-400 p-1"
+              {collections.map(col => {
+                const isSelected = selectedCollectionId === col.id
+                return (
+                  <motion.div
+                    key={col.id}
+                    layout
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    onClick={() => setSelectedCollectionId(col.id)}
+                    className="glass-card-hover flex items-center justify-between"
+                    style={{
+                      borderColor: isSelected ? 'var(--accent-blue)' : undefined,
+                      background: isSelected ? 'rgba(59,130,246,0.08)' : undefined,
+                      boxShadow: isSelected ? '0 0 0 1px var(--accent-blue)' : undefined,
+                    }}
                   >
-                    <Trash2 size={16} />
-                  </button>
-                </motion.div>
-              ))}
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="text-2xl">{col.icon}</span>
+                      <div className="min-w-0">
+                        <h3 className="font-medium truncate" style={{ color: 'var(--text-primary)' }}>{col.name}</h3>
+                        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{col.document_count} 份文档</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDeleteCollection(col.id, col.name) }}
+                      className="btn-ghost p-1"
+                      style={{ color: 'var(--text-dim)' }}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </motion.div>
+                )
+              })}
             </AnimatePresence>
           )}
         </div>
@@ -176,8 +179,8 @@ export function KnowledgeBasePage() {
         <div className="lg:col-span-2">
           {!selectedCollectionId ? (
             <div className="glass-card text-center py-20">
-              <FileText size={48} className="mx-auto mb-4 text-cosmos-700" />
-              <p className="text-cosmos-400">选择一个知识库查看文档</p>
+              <FileText size={48} className="mx-auto mb-4" style={{ color: 'var(--text-dim)' }} />
+              <p style={{ color: 'var(--text-secondary)' }}>选择一个知识库查看文档</p>
             </div>
           ) : (
             <motion.div
@@ -187,7 +190,7 @@ export function KnowledgeBasePage() {
             >
               {/* Upload area */}
               <div className="flex items-center justify-between">
-                <h2 className="text-xs font-medium text-cosmos-500 uppercase tracking-wider px-1">
+                <h2 className="text-xs font-medium uppercase tracking-wider px-1" style={{ color: 'var(--text-muted)' }}>
                   文档列表
                 </h2>
                 <div className="flex gap-2">
@@ -219,14 +222,14 @@ export function KnowledgeBasePage() {
                 </div>
               </div>
 
-              <p className="text-xs text-cosmos-600 px-1">
+              <p className="text-xs px-1" style={{ color: 'var(--text-dim)' }}>
                 支持 PDF、TXT、Markdown、DOCX 格式，单文件上限 50 MB
               </p>
 
               {documents.length === 0 ? (
                 <div className="glass-card text-center py-16">
-                  <Upload size={36} className="mx-auto mb-3 text-cosmos-700" />
-                  <p className="text-cosmos-400 text-sm">还没有文档，上传第一份学习资料吧</p>
+                  <Upload size={36} className="mx-auto mb-3" style={{ color: 'var(--text-dim)' }} />
+                  <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>还没有文档，上传第一份学习资料吧</p>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -239,13 +242,13 @@ export function KnowledgeBasePage() {
                       className="glass-card flex items-center justify-between group"
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-lg bg-cosmos-800 flex items-center justify-center
-                                      border border-glass-border">
-                          <FileText size={18} className="text-cosmos-400" />
+                        <div className="w-10 h-10 rounded-lg flex items-center justify-center"
+                             style={{ background: 'var(--bg-input)', border: '1px solid var(--border-glass)' }}>
+                          <FileText size={18} style={{ color: 'var(--text-secondary)' }} />
                         </div>
                         <div className="min-w-0">
-                          <p className="text-white text-sm truncate">{doc.filename}</p>
-                          <p className="text-xs text-cosmos-500">
+                          <p className="text-sm truncate" style={{ color: 'var(--text-primary)' }}>{doc.filename}</p>
+                          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                             {formatSize(doc.file_size)} · {doc.chunk_count} 片段 · {doc.file_type.toUpperCase()}
                             {doc.status === 'error' && (
                               <span className="text-red-400 ml-1">
@@ -257,17 +260,18 @@ export function KnowledgeBasePage() {
                       </div>
                       <div className="flex items-center gap-2">
                         {doc.status === 'processing' && (
-                          <Loader2 size={16} className="animate-spin text-nebula-blue" />
+                          <Loader2 size={16} className="animate-spin text-[var(--accent-blue)]" />
                         )}
                         {doc.status === 'ready' && (
-                          <span className="text-xs text-nebula-cyan bg-nebula-cyan/10 px-2 py-0.5 rounded-full">
+                          <span className="text-xs px-2 py-0.5 rounded-full"
+                                style={{ background: 'rgba(34,211,238,0.1)', color: 'var(--accent-cyan)' }}>
                             就绪
                           </span>
                         )}
                         <button
                           onClick={() => handleDeleteDocument(doc)}
-                          className="btn-ghost text-cosmos-600 hover:text-red-400
-                                   opacity-0 group-hover:opacity-100 transition-all p-1"
+                          className="btn-ghost p-1 opacity-0 group-hover:opacity-100 transition-all"
+                          style={{ color: 'var(--text-dim)' }}
                         >
                           <Trash2 size={16} />
                         </button>
@@ -299,7 +303,7 @@ export function KnowledgeBasePage() {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-serif font-semibold text-white">
+                <h3 className="text-lg font-serif font-semibold" style={{ color: 'var(--text-primary)' }}>
                   新建知识库
                 </h3>
                 <button onClick={() => setShowCreateModal(false)} className="btn-ghost p-1">
@@ -309,7 +313,7 @@ export function KnowledgeBasePage() {
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm text-cosmos-400 mb-1.5">名称</label>
+                  <label className="block text-sm mb-1.5" style={{ color: 'var(--text-secondary)' }}>名称</label>
                   <input
                     type="text"
                     value={newCollectionName}
@@ -321,7 +325,7 @@ export function KnowledgeBasePage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-cosmos-400 mb-1.5">描述（选填）</label>
+                  <label className="block text-sm mb-1.5" style={{ color: 'var(--text-secondary)' }}>描述（选填）</label>
                   <textarea
                     value={newCollectionDesc}
                     onChange={(e) => setNewCollectionDesc(e.target.value)}

@@ -1,4 +1,4 @@
-# 柏拉图之窗 (Plato's Window) — 项目说明文档
+﻿# 苏格拉底之窗 (Socrates' Window) — 项目说明文档
 
 > 洞穴墙上的投影，经由理性之光折射，成为理念世界的入口。
 
@@ -8,7 +8,7 @@
 
 ## 一、项目概述
 
-**柏拉图之窗** 是一个基于 RAG（检索增强生成）的智能学习系统。用户上传学习材料后，可与苏格拉底式的 AI 导师展开对话，实现从被动接收到主动发现的学习体验。
+**苏格拉底之窗** 是一个基于 RAG（检索增强生成）的智能学习系统。用户上传学习材料后，可与苏格拉底式的 AI 导师展开对话，实现从被动接收到主动发现的学习体验。
 
 ### 核心特性
 
@@ -56,7 +56,7 @@
 
 | 存储 | 用途 | 位置 |
 |---|---|---|
-| **SQLite** | 元数据（知识库、文档、对话、消息） | `backend/data/platos_window.db` |
+| **SQLite** | 元数据（知识库、文档、对话、消息） | `backend/data/Socratess_window.db` |
 | **ChromaDB** | 向量数据（文档分块的 embedding） | `backend/data/chroma/` |
 
 ---
@@ -64,7 +64,7 @@
 ## 三、项目结构
 
 ```
-platos-window/
+Socratess-window/
 ├── docker-compose.yml              # Docker 编排
 ├── README.md
 ├── backend/
@@ -241,7 +241,7 @@ Collection (知识库)
 
 #### 苏格拉底式系统提示词
 
-柏拉图的教学之道内置于系统提示词中：
+苏格拉底的教学之道内置于系统提示词中：
 
 1. **苏格拉底式追问**: 用层层递进的问题引导发现，而非直接给出答案
 2. **从具体升到抽象**: 将具体问题与底层原理联系起来
@@ -338,7 +338,7 @@ EMBED_BATCH_SIZE=10
 EMBED_MAX_RETRIES=3
 
 # 数据库
-DATABASE_URL=sqlite+aiosqlite:///./data/platos_window.db
+DATABASE_URL=sqlite+aiosqlite:///./data/Socratess_window.db
 CHROMA_PERSIST_DIR=./data/chroma
 
 # 服务器
@@ -546,4 +546,4 @@ similarity = 1 - distance / 2
 - [ ] **学习分析**: 学习进度追踪、知识掌握度评估
 - [ ] **本地模型**: 接入 Ollama 等本地 LLM/Embedding
 - [ ] **多语言增强**: 跨语言检索与翻译辅助
-- [ ] **自定义系统提示词**: 前端界面编辑柏拉图的人格
+- [ ] **自定义系统提示词**: 前端界面编辑苏格拉底的人格

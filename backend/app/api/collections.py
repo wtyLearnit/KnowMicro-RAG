@@ -1,5 +1,5 @@
-"""
-柏拉图之窗 - Collection API Routes
+﻿"""
+苏格拉底之窗 - Collection API Routes
 """
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException

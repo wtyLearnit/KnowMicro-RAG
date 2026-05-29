@@ -1,5 +1,5 @@
-"""
-柏拉图之窗 - Chunking Service
+﻿"""
+苏格拉底之窗 - Chunking Service
 Multiple strategies for splitting text into chunks.
 """
 from typing import List, Callable
