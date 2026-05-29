@@ -1,0 +1,30 @@
+# 柏拉图之窗 - Backend Dependencies
+# Core
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.3
+pydantic-settings==2.7.0
+
+# Database
+sqlalchemy==2.0.36
+aiosqlite==0.20.0
+
+# Vector Store
+chromadb==0.5.23
+
+# HTTP Client (LLM/Embedding API calls)
+httpx==0.28.1
+
+# Document Parsing
+PyPDF2==3.0.1
+python-docx==1.1.2
+markdown==3.7
+
+# Text Processing
+tiktoken==0.8.0
+
+# Streaming
+sse-starlette==2.2.1
+
+# CORS
+python-multipart==0.0.19

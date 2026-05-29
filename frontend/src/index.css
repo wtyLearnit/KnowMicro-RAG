@@ -1,0 +1,84 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #41381e transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: #41381e;
+    border-radius: 3px;
+  }
+
+  body {
+    @apply bg-academia-900 text-parchment-50;
+    background-image:
+      radial-gradient(ellipse at 20% 50%, rgba(128, 112, 61, 0.06) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 20%, rgba(180, 167, 135, 0.04) 0%, transparent 50%);
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply px-5 py-2.5 rounded-lg bg-parchment-400 text-academia-900
+           font-medium hover:bg-parchment-300 active:bg-parchment-500
+           transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply px-5 py-2.5 rounded-lg border border-parchment-700 text-parchment-200
+           font-medium hover:bg-parchment-700/20 hover:border-parchment-500
+           active:bg-parchment-700/30 transition-all duration-200;
+  }
+
+  .btn-ghost {
+    @apply px-3 py-2 rounded-lg text-parchment-300 hover:text-parchment-100
+           hover:bg-parchment-700/20 transition-all duration-200;
+  }
+
+  .input-field {
+    @apply w-full px-4 py-2.5 rounded-lg bg-academia-800 border border-parchment-700
+           text-parchment-100 placeholder-parchment-500
+           focus:outline-none focus:ring-2 focus:ring-parchment-400/50 focus:border-parchment-400
+           transition-all duration-200;
+  }
+
+  .card {
+    @apply bg-academia-800/80 backdrop-blur-sm border border-parchment-700/50
+           rounded-xl p-6 hover:border-parchment-600/50 transition-all duration-300;
+  }
+
+  .card-hover {
+    @apply card hover:bg-academia-700/80 hover:shadow-lg hover:shadow-academia-900/30
+           hover:-translate-y-0.5 cursor-pointer;
+  }
+}
+
+/* Markdown content styling */
+.prose-content h1 { @apply text-2xl font-serif font-bold text-parchment-100 mt-6 mb-4; }
+.prose-content h2 { @apply text-xl font-serif font-semibold text-parchment-200 mt-5 mb-3; }
+.prose-content h3 { @apply text-lg font-serif font-medium text-parchment-200 mt-4 mb-2; }
+.prose-content p { @apply my-3 leading-relaxed text-parchment-100; }
+.prose-content ul { @apply list-disc list-inside my-3 space-y-1; }
+.prose-content ol { @apply list-decimal list-inside my-3 space-y-1; }
+.prose-content li { @apply text-parchment-200 leading-relaxed; }
+.prose-content code { @apply bg-academia-700 text-parchment-200 px-1.5 py-0.5 rounded text-sm font-mono; }
+.prose-content pre { @apply bg-academia-700 p-4 rounded-lg my-4 overflow-x-auto; }
+.prose-content pre code { @apply bg-transparent p-0; }
+.prose-content blockquote {
+  @apply border-l-4 border-parchment-400 pl-4 my-4 italic text-parchment-300;
+}
+.prose-content strong { @apply text-parchment-100 font-semibold; }
+.prose-content a { @apply text-parchment-300 underline hover:text-parchment-100; }
+.prose-content hr { @apply border-parchment-700 my-6; }
