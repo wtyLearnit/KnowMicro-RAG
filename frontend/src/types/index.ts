@@ -44,6 +44,7 @@ export interface Conversation {
   title: string;
   model_used: string;
   message_count: number;
+  is_orphaned: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -107,4 +108,44 @@ export interface UploadResponse {
   file_size: number;
   chunk_count: number;
   status: string;
+}
+
+export interface TrashCollection {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  document_count: number;
+  conversation_count: number;
+  archived_at: string | null;
+  created_at: string;
+}
+
+export interface TrashDocument {
+  id: string;
+  collection_id: string;
+  collection_name: string;
+  filename: string;
+  file_type: string;
+  file_size: number;
+  archived_at: string | null;
+  created_at: string;
+}
+
+export interface TrashConversation {
+  id: string;
+  collection_id: string | null;
+  collection_name: string;
+  title: string;
+  message_count: number;
+  model_used: string;
+  is_orphaned: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TrashData {
+  collections: TrashCollection[];
+  documents: TrashDocument[];
+  conversations: TrashConversation[];
 }

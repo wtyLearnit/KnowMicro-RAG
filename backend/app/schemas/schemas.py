@@ -122,6 +122,7 @@ class ConversationOut(BaseModel):
     title: str
     model_used: str
     message_count: int = 0
+    is_orphaned: bool = False
     created_at: datetime
     updated_at: datetime
 
@@ -172,3 +173,60 @@ class ConfigResponse(BaseModel):
     embed_dimensions: int
     chunk_size: int
     chunk_overlap: int
+
+
+# ── Archive / Trash ──────────────────────────────────
+class ArchiveCollectionRequest(BaseModel):
+    keep_conversations: bool = True
+
+
+class TrashCollectionOut(BaseModel):
+    id: str
+    name: str
+    description: str
+    icon: str
+    document_count: int = 0
+    conversation_count: int = 0
+    archived_at: Optional[datetime] = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class TrashDocumentOut(BaseModel):
+    id: str
+    collection_id: str
+    collection_name: str = ""
+    filename: str
+    file_type: str
+    file_size: int
+    archived_at: Optional[datetime] = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class TrashConversationOut(BaseModel):
+    id: str
+    collection_id: Optional[str] = None
+    collection_name: str = ""
+    title: str
+    message_count: int = 0
+    model_used: str = ""
+    is_orphaned: bool = False
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class TrashResponse(BaseModel):
+    collections: List[TrashCollectionOut] = []
+    documents: List[TrashDocumentOut] = []
+    conversations: List[TrashConversationOut] = []
+
+
+class TrashCounts(BaseModel):
+    collections: int = 0
+    documents: int = 0
+    conversations: int = 0

@@ -14,6 +14,7 @@ from app.services.exceptions import ExternalServiceError
 from app.api.collections import router as collection_router
 from app.api.documents import router as document_router
 from app.api.chat import chat_router, search_router, conv_router
+from app.api.trash import router as trash_router
 from app.api.system import router as system_router
 
 logger = logging.getLogger("Socratess_window")
@@ -61,6 +62,7 @@ app.include_router(document_router)
 app.include_router(chat_router)
 app.include_router(search_router)
 app.include_router(conv_router)
+app.include_router(trash_router)
 app.include_router(system_router)
 
 

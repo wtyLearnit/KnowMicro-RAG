@@ -2,9 +2,10 @@
 苏格拉底之窗 - Document API Routes
 """
 from typing import List
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, update as sql_update
 from app.database import get_db, Collection, Document
 from app.schemas.schemas import DocumentOut, DocumentUploadResponse, DocumentPreview, DocumentChunk
 from app.services.document_service import document_service
@@ -167,7 +168,7 @@ async def list_documents(
     """List all documents in a collection."""
     result = await db.execute(
         select(Document)
-        .where(Document.collection_id == collection_id)
+        .where(Document.collection_id == collection_id, Document.is_archived == 0)
         .order_by(Document.created_at.desc())
     )
     return result.scalars().all()
@@ -207,12 +208,42 @@ async def get_document_preview(
     )
 
 
-@router.delete("/{document_id}", status_code=204)
-async def delete_document(
+@router.post("/{document_id}/archive", status_code=204)
+async def archive_document(
     document_id: str,
     db: AsyncSession = Depends(get_db),
 ):
-    """Delete a document from both DB and vector store."""
+    """Archive a document (soft delete)."""
+    doc = await db.get(Document, document_id)
+    if not doc or doc.is_archived:
+        raise HTTPException(404, "文档不存在")
+
+    doc.is_archived = 1
+    doc.archived_at = datetime.now(timezone.utc)
+    await db.commit()
+
+
+@router.post("/{document_id}/restore", status_code=204)
+async def restore_document(
+    document_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Restore a document from trash."""
+    doc = await db.get(Document, document_id)
+    if not doc or not doc.is_archived:
+        raise HTTPException(404, "已归档文档不存在")
+
+    doc.is_archived = 0
+    doc.archived_at = None
+    await db.commit()
+
+
+@router.delete("/{document_id}/permanent", status_code=204)
+async def permanent_delete_document(
+    document_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Permanently delete a document from both DB and vector store."""
     doc = await db.get(Document, document_id)
     if not doc:
         raise HTTPException(404, "文档不存在")

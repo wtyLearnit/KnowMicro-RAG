@@ -15,8 +15,12 @@ router = APIRouter(prefix="/api/system", tags=["system"])
 @router.get("/stats", response_model=StatsResponse)
 async def get_stats(db: AsyncSession = Depends(get_db)):
     """Get system-wide statistics."""
-    collection_count = await db.scalar(select(func.count(Collection.id)))
-    doc_count = await db.scalar(select(func.count(Document.id)))
+    collection_count = await db.scalar(
+        select(func.count(Collection.id)).where(Collection.is_archived == 0)
+    )
+    doc_count = await db.scalar(
+        select(func.count(Document.id)).where(Document.is_archived == 0)
+    )
     conv_count = await db.scalar(select(func.count(Conversation.id)))
 
     # Sum vector counts across all collections

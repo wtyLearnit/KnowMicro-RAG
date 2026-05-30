@@ -26,6 +26,8 @@ class Collection(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
                         onupdate=lambda: datetime.now(timezone.utc))
+    is_archived = Column(Integer, default=0)
+    archived_at = Column(DateTime, nullable=True)
 
     documents = relationship("Document", back_populates="collection", cascade="all, delete-orphan")
     conversations = relationship("Conversation", back_populates="collection", cascade="save-update, merge")
@@ -45,6 +47,8 @@ class Document(Base):
     error_message = Column(Text, default="")
     content = Column(Text, default="")                    # 存储解析后的文本内容
     metadata_ = Column("metadata", JSON, default=dict)
+    is_archived = Column(Integer, default=0)
+    archived_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     collection = relationship("Collection", back_populates="documents")
@@ -65,6 +69,9 @@ class Conversation(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
                         onupdate=lambda: datetime.now(timezone.utc))
+    is_orphaned = Column(Integer, default=0)  # 关联知识库被归档但保留了对话
+    is_archived = Column(Integer, default=0)
+    archived_at = Column(DateTime, nullable=True)
 
     collection = relationship("Collection", back_populates="conversations")
     messages = relationship("Message", back_populates="conversation", 
@@ -140,10 +147,51 @@ async def _migrate_conversations(conn):
             break
 
 
+async def _migrate_archive_fields(conn):
+    """Migrate: add is_archived, archived_at, is_orphaned columns if they don't exist."""
+    from sqlalchemy import text
+    import logging
+    logger = logging.getLogger("Socratess_window")
+
+    # Check and add columns for collections
+    result = await conn.execute(text("PRAGMA table_info(collections)"))
+    cols = {row[1] for row in result.fetchall()}
+    if 'is_archived' not in cols:
+        logger.info("Adding is_archived column to collections")
+        await conn.execute(text("ALTER TABLE collections ADD COLUMN is_archived INTEGER DEFAULT 0"))
+    if 'archived_at' not in cols:
+        logger.info("Adding archived_at column to collections")
+        await conn.execute(text("ALTER TABLE collections ADD COLUMN archived_at DATETIME"))
+
+    # Check and add columns for documents
+    result = await conn.execute(text("PRAGMA table_info(documents)"))
+    cols = {row[1] for row in result.fetchall()}
+    if 'is_archived' not in cols:
+        logger.info("Adding is_archived column to documents")
+        await conn.execute(text("ALTER TABLE documents ADD COLUMN is_archived INTEGER DEFAULT 0"))
+    if 'archived_at' not in cols:
+        logger.info("Adding archived_at column to documents")
+        await conn.execute(text("ALTER TABLE documents ADD COLUMN archived_at DATETIME"))
+
+    # Check and add column for conversations
+    result = await conn.execute(text("PRAGMA table_info(conversations)"))
+    cols = {row[1] for row in result.fetchall()}
+    if 'is_orphaned' not in cols:
+        logger.info("Adding is_orphaned column to conversations")
+        await conn.execute(text("ALTER TABLE conversations ADD COLUMN is_orphaned INTEGER DEFAULT 0"))
+    if 'is_archived' not in cols:
+        logger.info("Adding is_archived column to conversations")
+        await conn.execute(text("ALTER TABLE conversations ADD COLUMN is_archived INTEGER DEFAULT 0"))
+    if 'archived_at' not in cols:
+        logger.info("Adding archived_at column to conversations")
+        await conn.execute(text("ALTER TABLE conversations ADD COLUMN archived_at DATETIME"))
+
+
 async def init_db():
     """Create all tables on startup, with migration support."""
     async with engine.begin() as conn:
         await _migrate_conversations(conn)
+        await _migrate_archive_fields(conn)
         await conn.run_sync(Base.metadata.create_all)
 
 

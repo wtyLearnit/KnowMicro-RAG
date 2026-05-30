@@ -7,12 +7,13 @@ import {
   Send, BookOpen, ChevronDown, Plus, Trash2, Loader2, X,
   FileText, Sparkles, RotateCcw, Database, Check,
   Pencil, Copy, GitBranch, CheckCheck, SlidersHorizontal,
-  MessageCircle,
+  MessageCircle, MessageSquare, AlertTriangle,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import {
   listCollections, getCollection,
-  listConversations, listFreeConversations, getMessages, deleteConversation,
+  listConversations, listFreeConversations, listOrphanedConversations,
+  getMessages, archiveConversation,
   streamMessage, renameConversation, editMessage, deleteMessage,
   regenerateResponse, branchConversation,
 } from '../services/api'
@@ -167,6 +168,7 @@ export function ChatPage() {
   )
   const [activeCollection, setActiveCollection] = useState<Collection | null>(null)
   const [conversations, setConversations] = useState<Conversation[]>([])
+  const [orphanedConversations, setOrphanedConversations] = useState<Conversation[]>([])
   const [activeConvId, setActiveConvId] = useState<string | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -183,6 +185,7 @@ export function ChatPage() {
     return saved ? parseInt(saved, 10) : 5
   })
   const [showTopKPanel, setShowTopKPanel] = useState(false)
+  const [isOrphanedConv, setIsOrphanedConv] = useState(false)
 
   // ── Feature 1: Rename ──
   const [renamingConvId, setRenamingConvId] = useState<string | null>(null)
@@ -223,6 +226,7 @@ export function ChatPage() {
 
   useEffect(() => {
     listCollections().then(setCollections).catch(() => {})
+    listOrphanedConversations().then(setOrphanedConversations).catch(() => {})
   }, [])
 
   // Sync URL with activeCollectionId / isFreeChat
@@ -239,6 +243,7 @@ export function ChatPage() {
     if (isFreeChat) {
       setActiveCollection(null)
       listFreeConversations().then(setConversations).catch(() => {})
+      listOrphanedConversations().then(setOrphanedConversations).catch(() => {})
     } else if (activeCollectionId) {
       localStorage.setItem('lastCollectionId', activeCollectionId)
       getCollection(activeCollectionId).then(setActiveCollection).catch(() => {})
@@ -266,24 +271,29 @@ export function ChatPage() {
     setActiveConvId(convId)
     setEditingMsgId(null)
     setRegeneratingMsgId(null)
+    // Check if this conversation is orphaned
+    const conv = conversations.find(c => c.id === convId)
+      ?? orphanedConversations.find(c => c.id === convId)
+    setIsOrphanedConv(conv?.is_orphaned ?? false)
     try {
       const msgs = await getMessages(scopeId, convId)
       setMessages(msgs)
     } catch {
       setMessages([])
     }
-  }, [scopeId])
+  }, [scopeId, conversations])
 
   const refreshConversationList = useCallback(() => {
     if (isFreeChat) {
       listFreeConversations().then(setConversations).catch(() => {})
+      listOrphanedConversations().then(setOrphanedConversations).catch(() => {})
     } else if (activeCollectionId) {
       listConversations(activeCollectionId).then(setConversations).catch(() => {})
     }
   }, [activeCollectionId, isFreeChat])
 
   const handleSend = async () => {
-    if (!input.trim() || (!activeCollectionId && !isFreeChat) || streaming || regeneratingMsgId) return
+    if (!input.trim() || (!activeCollectionId && !isFreeChat) || streaming || regeneratingMsgId || isOrphanedConv) return
     const userMessage = input.trim()
     setInput('')
     setStreaming(true)
@@ -519,7 +529,7 @@ export function ChatPage() {
 
   const handleDeleteConv = async (convId: string) => {
     if (!scopeId) return
-    await deleteConversation(scopeId, convId)
+    await archiveConversation(scopeId, convId)
     if (activeConvId === convId) {
       setActiveConvId(null)
       setMessages([])
@@ -535,6 +545,7 @@ export function ChatPage() {
     setShowSources(false)
     setEditingMsgId(null)
     setRegeneratingMsgId(null)
+    setIsOrphanedConv(false)
   }
 
   const latestSources = streamingSources.length > 0
@@ -611,6 +622,55 @@ export function ChatPage() {
                   <div className="text-xs" style={{ color: 'var(--text-muted)' }}>不依赖知识库，直接与苏格拉底对话</div>
                 </div>
               </button>
+
+              {/* Orphaned conversations from archived collections */}
+              {orphanedConversations.length > 0 && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2 px-1 pt-2">
+                    <div className="flex-1 h-px" style={{ background: 'var(--border-glass)' }} />
+                    <span className="text-xs flex-shrink-0" style={{ color: 'var(--text-dim)' }}>
+                      已归档知识库对话
+                    </span>
+                    <div className="flex-1 h-px" style={{ background: 'var(--border-glass)' }} />
+                  </div>
+                  {orphanedConversations.map(conv => (
+                    <button
+                      key={conv.id}
+                      onClick={() => {
+                        setIsFreeChat(true)
+                        setActiveCollectionId(null)
+                        setIsOrphanedConv(true)
+                        setActiveConvId(conv.id)
+                        setMessages([])
+                        getMessages('free', conv.id).then(setMessages).catch(() => setMessages([]))
+                        navigate('/chat/free')
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 text-left"
+                      style={{
+                        background: 'var(--bg-card)',
+                        border: '1px solid var(--border-glass)',
+                        color: 'var(--text-primary)',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = 'var(--bg-card-hover)'
+                        e.currentTarget.style.borderColor = 'var(--accent-blue)'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'var(--bg-card)'
+                        e.currentTarget.style.borderColor = 'var(--border-glass)'
+                      }}
+                    >
+                      <MessageSquare size={18} style={{ color: 'var(--text-dim)' }} />
+                      <div className="min-w-0 text-left">
+                        <div className="text-sm truncate">{conv.title}</div>
+                        <div className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
+                          来自已删除的知识库 · {conv.message_count} 条消息
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </motion.div>
         </div>
@@ -634,7 +694,13 @@ export function ChatPage() {
                         setIsFreeChat(false)
                         setActiveConvId(null)
                         setMessages([])
-                        navigate('/chat')
+                        const lastId = localStorage.getItem('lastCollectionId')
+                        if (lastId) {
+                          setActiveCollectionId(lastId)
+                          navigate(`/chat/${lastId}`)
+                        } else {
+                          navigate('/chat')
+                        }
                       }}
                       className="w-full text-xs px-3 py-1.5 rounded-lg transition-all duration-200"
                       style={{ color: 'var(--text-muted)', border: '1px solid var(--border-glass)' }}
@@ -777,6 +843,45 @@ export function ChatPage() {
                     暂无对话
                   </p>
                 )}
+
+                {/* Orphaned conversations — peer section to free chat */}
+                {isFreeChat && orphanedConversations.length > 0 && (
+                  <div className="border-t mt-2 pt-2" style={{ borderColor: 'var(--border-glass)' }}>
+                    <p className="px-3 py-1.5 text-xs font-medium" style={{ color: 'var(--text-dim)' }}>
+                      已归档知识库对话
+                    </p>
+                    {orphanedConversations.map(conv => {
+                      const isActive = activeConvId === conv.id
+                      return (
+                        <div
+                          key={conv.id}
+                          className="group flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer text-sm transition-all duration-200 mx-2"
+                          style={{
+                            color: isActive ? 'var(--accent-blue)' : 'var(--text-secondary)',
+                            background: isActive ? 'rgba(59,130,246,0.12)' : 'transparent',
+                            border: isActive ? '1px solid rgba(59,130,246,0.25)' : '1px solid transparent',
+                          }}
+                          onClick={() => loadConversation(conv.id)}
+                          onMouseEnter={(e) => {
+                            if (!isActive) {
+                              e.currentTarget.style.color = 'var(--text-primary)'
+                              e.currentTarget.style.background = 'var(--bg-card)'
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!isActive) {
+                              e.currentTarget.style.color = 'var(--text-secondary)'
+                              e.currentTarget.style.background = 'transparent'
+                            }
+                          }}
+                        >
+                          <MessageSquare size={14} style={{ color: 'var(--text-dim)' }} />
+                          <span className="truncate flex-1">{conv.title}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           </Panel>
@@ -787,6 +892,25 @@ export function ChatPage() {
           {/* Center - Chat */}
           <Panel defaultSize={showSources ? "47%" : "72%"} minSize="30%">
             <div className="h-full flex flex-col">
+              {/* Orphaned conversation banner */}
+              {isOrphanedConv && (
+                <div className="mx-4 mt-3 rounded-xl px-4 py-3 flex items-start gap-3"
+                     style={{
+                       background: 'rgba(251,191,36,0.1)',
+                       border: '1px solid rgba(251,191,36,0.25)',
+                     }}>
+                  <AlertTriangle size={18} className="flex-shrink-0 mt-0.5" style={{ color: 'var(--accent-gold)' }} />
+                  <div>
+                    <p className="text-sm font-medium" style={{ color: 'var(--accent-gold)' }}>
+                      此对话关联的知识库已被删除
+                    </p>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                      仅可查看历史记录，无法发送新消息。如需继续对话，请创建新对话。
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Header bar with export button */}
               {activeConvId && messages.length > 0 && (
                 <div className="flex items-center justify-end px-4 py-2 border-b" style={{ borderColor: 'var(--border-glass)' }}>
@@ -912,7 +1036,7 @@ export function ChatPage() {
                         )}
 
                         {/* Action buttons — hover-only, zero height when hidden */}
-                        {!streaming && !regeneratingMsgId && editingMsgId !== msg.id && (
+                        {!streaming && !regeneratingMsgId && editingMsgId !== msg.id && !isOrphanedConv && (
                           <div className="h-0 overflow-visible opacity-0 group-hover/msg:opacity-100 group-hover/msg:mt-1.5 transition-all">
                             <div className="flex items-center gap-1">
                               {/* Copy single message */}
@@ -1075,7 +1199,8 @@ export function ChatPage() {
 
               {/* Input */}
               <div className="border-t p-4" style={{ borderColor: 'var(--border-glass)', background: 'var(--bg-sidebar)' }}>
-                {/* Mode toggle + Top-K selector */}
+                {/* Mode toggle + Top-K selector (hidden for orphaned convs) */}
+                {!isOrphanedConv && (
                 <div className="flex items-center gap-2 mb-3 flex-wrap">
                   <div className="flex rounded-lg p-0.5" style={{ background: 'var(--bg-input)', border: '1px solid var(--border-glass)' }}>
                     <button
@@ -1190,6 +1315,7 @@ export function ChatPage() {
                   </div>
                   )}
                 </div>
+                )}
 
                 <div className="flex gap-3">
                   <textarea
@@ -1202,17 +1328,19 @@ export function ChatPage() {
                       }
                     }}
                     placeholder={
-                      isFreeChat
-                        ? '自由对话模式，随意提问...'
-                        : mode === 'socratic' ? '向苏格拉底提问...' : '输入你的问题...'
+                      isOrphanedConv
+                        ? '此对话已归档，无法发送新消息'
+                        : isFreeChat
+                          ? '自由对话模式，随意提问...'
+                          : mode === 'socratic' ? '向苏格拉底提问...' : '输入你的问题...'
                     }
                     rows={2}
                     className="input-field flex-1 resize-none"
-                    disabled={streaming || !!regeneratingMsgId}
+                    disabled={streaming || !!regeneratingMsgId || isOrphanedConv}
                   />
                   <button
                     onClick={handleSend}
-                    disabled={!input.trim() || streaming || !!regeneratingMsgId}
+                    disabled={!input.trim() || streaming || !!regeneratingMsgId || isOrphanedConv}
                     className="btn-primary self-end flex items-center gap-2"
                   >
                     <Send size={16} />

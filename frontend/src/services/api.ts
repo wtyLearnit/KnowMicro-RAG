@@ -3,7 +3,7 @@ import axios from 'axios';
 import type {
   Collection, Document, Conversation, Message,
   ChatResponse, SearchResponse, Stats, SystemConfig, UploadResponse,
-  DocumentPreview,
+  DocumentPreview, TrashData,
 } from '../types';
 
 const api = axios.create({
@@ -145,8 +145,14 @@ export const listConversations = (collectionId: string) =>
 export const listFreeConversations = () =>
   api.get<Conversation[]>('/conversations/free').then(r => r.data);
 
+export const listOrphanedConversations = () =>
+  api.get<Conversation[]>('/conversations/orphaned').then(r => r.data);
+
 export const getMessages = (collectionId: string, conversationId: string) =>
   api.get<Message[]>(`/conversations/${collectionId}/${conversationId}`).then(r => r.data);
+
+export const archiveConversation = (collectionId: string, conversationId: string) =>
+  api.post(`/conversations/${collectionId}/${conversationId}/archive`);
 
 export const deleteConversation = (collectionId: string, conversationId: string) =>
   api.delete(`/conversations/${collectionId}/${conversationId}`);
@@ -246,3 +252,32 @@ export const getStats = () =>
 
 export const getConfig = () =>
   api.get<SystemConfig>('/system/config').then(r => r.data);
+
+// ── Archive ────────────────────────────────────────
+export const archiveCollection = (id: string, keepConversations: boolean = true) =>
+  api.post(`/collections/${id}/archive`, null, { params: { keep_conversations: keepConversations } });
+
+export const archiveDocument = (id: string) =>
+  api.post(`/documents/${id}/archive`);
+
+// ── Trash ──────────────────────────────────────────
+export const getTrash = () =>
+  api.get<TrashData>('/trash').then(r => r.data);
+
+export const permanentDeleteCollection = (id: string) =>
+  api.delete(`/trash/collections/${id}`);
+
+export const permanentDeleteDocument = (id: string) =>
+  api.delete(`/trash/documents/${id}`);
+
+export const permanentDeleteConversation = (id: string) =>
+  api.delete(`/trash/conversations/${id}`);
+
+export const restoreCollection = (id: string) =>
+  api.post(`/trash/collections/${id}/restore`);
+
+export const restoreDocument = (id: string) =>
+  api.post(`/trash/documents/${id}/restore`);
+
+export const restoreConversation = (id: string) =>
+  api.post(`/trash/conversations/${id}/restore`);

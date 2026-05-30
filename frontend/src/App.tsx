@@ -6,6 +6,7 @@ import { HomePage } from './pages/HomePage'
 import { ChatPage } from './pages/ChatPage'
 import { KnowledgeBasePage } from './pages/KnowledgeBasePage'
 import { SettingsPage } from './pages/SettingsPage'
+import { TrashPage } from './pages/TrashPage'
 
 export default function App() {
   return (
@@ -16,6 +17,7 @@ export default function App() {
           <Route path="/chat/:collectionId?" element={<ChatPage />} />
           <Route path="/knowledge" element={<KnowledgeBasePage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/trash" element={<TrashPage />} />
         </Routes>
       </Layout>
     </ThemeProvider>

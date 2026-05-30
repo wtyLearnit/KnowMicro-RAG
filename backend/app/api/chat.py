@@ -90,6 +90,8 @@ async def chat(
         conversation = await db.get(Conversation, req.conversation_id)
         if not conversation:
             raise HTTPException(404, "对话不存在")
+        if conversation.is_orphaned:
+            raise HTTPException(400, "此对话关联的知识库已被删除，仅可查看历史记录，无法发送新消息")
     else:
         conversation = Conversation(
             collection_id=req.collection_id,
@@ -177,6 +179,8 @@ async def chat_stream(
         conversation = await db.get(Conversation, req.conversation_id)
         if not conversation:
             raise HTTPException(404, "对话不存在")
+        if conversation.is_orphaned:
+            raise HTTPException(400, "此对话关联的知识库已被删除，仅可查看历史记录，无法发送新消息")
     else:
         conversation = Conversation(
             collection_id=req.collection_id,
@@ -282,44 +286,14 @@ async def chat_stream(
 conv_router = APIRouter(prefix="/api/conversations", tags=["conversations"])
 
 
-@conv_router.get("/free", response_model=List[ConversationOut])
-async def list_free_conversations(
+@conv_router.get("/orphaned", response_model=List[ConversationOut])
+async def list_orphaned_conversations(
     db: AsyncSession = Depends(get_db),
 ):
-    """List conversations without a knowledge base (free chat)."""
+    """List orphaned conversations (kept after collection deletion)."""
     result = await db.execute(
         select(Conversation)
-        .where(Conversation.collection_id.is_(None))
-        .order_by(Conversation.updated_at.desc())
-    )
-    conversations = result.scalars().all()
-
-    out = []
-    for conv in conversations:
-        msg_count = await db.scalar(
-            select(func.count(Message.id)).where(Message.conversation_id == conv.id)
-        )
-        out.append(ConversationOut(
-            id=conv.id,
-            collection_id=None,
-            title=conv.title,
-            model_used=conv.model_used,
-            message_count=msg_count or 0,
-            created_at=conv.created_at,
-            updated_at=conv.updated_at,
-        ))
-    return out
-
-
-@conv_router.get("/{collection_id}", response_model=List[ConversationOut])
-async def list_conversations(
-    collection_id: str,
-    db: AsyncSession = Depends(get_db),
-):
-    """List conversations for a collection."""
-    result = await db.execute(
-        select(Conversation)
-        .where(Conversation.collection_id == collection_id)
+        .where(Conversation.is_orphaned == 1, Conversation.is_archived == 0)
         .order_by(Conversation.updated_at.desc())
     )
     conversations = result.scalars().all()
@@ -335,6 +309,72 @@ async def list_conversations(
             title=conv.title,
             model_used=conv.model_used,
             message_count=msg_count or 0,
+            is_orphaned=True,
+            created_at=conv.created_at,
+            updated_at=conv.updated_at,
+        ))
+    return out
+
+
+@conv_router.get("/free", response_model=List[ConversationOut])
+async def list_free_conversations(
+    db: AsyncSession = Depends(get_db),
+):
+    """List conversations without a knowledge base (free chat)."""
+    result = await db.execute(
+        select(Conversation)
+        .where(
+            Conversation.collection_id.is_(None),
+            Conversation.is_orphaned == 0,
+            Conversation.is_archived == 0,
+        )
+        .order_by(Conversation.updated_at.desc())
+    )
+    conversations = result.scalars().all()
+
+    out = []
+    for conv in conversations:
+        msg_count = await db.scalar(
+            select(func.count(Message.id)).where(Message.conversation_id == conv.id)
+        )
+        out.append(ConversationOut(
+            id=conv.id,
+            collection_id=None,
+            title=conv.title,
+            model_used=conv.model_used,
+            message_count=msg_count or 0,
+            is_orphaned=bool(conv.is_orphaned),
+            created_at=conv.created_at,
+            updated_at=conv.updated_at,
+        ))
+    return out
+
+
+@conv_router.get("/{collection_id}", response_model=List[ConversationOut])
+async def list_conversations(
+    collection_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """List conversations for a collection."""
+    result = await db.execute(
+        select(Conversation)
+        .where(Conversation.collection_id == collection_id, Conversation.is_archived == 0)
+        .order_by(Conversation.updated_at.desc())
+    )
+    conversations = result.scalars().all()
+
+    out = []
+    for conv in conversations:
+        msg_count = await db.scalar(
+            select(func.count(Message.id)).where(Message.conversation_id == conv.id)
+        )
+        out.append(ConversationOut(
+            id=conv.id,
+            collection_id=conv.collection_id,
+            title=conv.title,
+            model_used=conv.model_used,
+            message_count=msg_count or 0,
+            is_orphaned=bool(conv.is_orphaned),
             created_at=conv.created_at,
             updated_at=conv.updated_at,
         ))
@@ -356,17 +396,18 @@ async def get_messages(
     return result.scalars().all()
 
 
-@conv_router.delete("/{collection_id}/{conversation_id}", status_code=204)
-async def delete_conversation(
+@conv_router.post("/{collection_id}/{conversation_id}/archive", status_code=204)
+async def archive_conversation(
     collection_id: str,
     conversation_id: str,
     db: AsyncSession = Depends(get_db),
 ):
-    """Delete a conversation."""
+    """Archive a conversation (soft delete)."""
     conv = await db.get(Conversation, conversation_id)
     if not conv:
         raise HTTPException(404, "对话不存在")
-    await db.delete(conv)
+    conv.is_archived = 1
+    conv.archived_at = datetime.now(timezone.utc)
     await db.commit()
 
 
@@ -396,6 +437,7 @@ async def rename_conversation(
         title=conv.title,
         model_used=conv.model_used,
         message_count=msg_count or 0,
+        is_orphaned=bool(conv.is_orphaned),
         created_at=conv.created_at,
         updated_at=conv.updated_at,
     )
@@ -647,6 +689,7 @@ async def branch_conversation(
         title=new_conv.title,
         model_used=new_conv.model_used,
         message_count=msg_count,
+        is_orphaned=False,
         created_at=new_conv.created_at,
         updated_at=new_conv.updated_at,
     )

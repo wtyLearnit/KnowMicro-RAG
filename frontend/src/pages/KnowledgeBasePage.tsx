@@ -4,11 +4,12 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Plus, Upload, Trash2, FileText, X, Loader2, RefreshCw,
   Database, HardDrive, Pencil, Eye, ChevronLeft, ChevronRight,
-  Check, GripVertical,
+  Check, GripVertical, AlertTriangle,
 } from 'lucide-react'
 import {
-  listCollections, createCollection, updateCollection, deleteCollection,
-  listDocuments, uploadDocumentWithProgress, deleteDocument,
+  listCollections, createCollection, updateCollection,
+  archiveCollection,
+  listDocuments, uploadDocumentWithProgress, archiveDocument,
   getDocumentPreview,
 } from '../services/api'
 import type { Collection, Document, DocumentPreview } from '../types'
@@ -287,6 +288,10 @@ export function KnowledgeBasePage() {
   const [isDragging, setIsDragging] = useState(false)
   const dragCounterRef = useRef(0)
 
+  // Archive confirmation dialog
+  const [archiveTarget, setArchiveTarget] = useState<Collection | null>(null)
+  const [keepConversations, setKeepConversations] = useState(true)
+
   // Document preview
   const [previewDocId, setPreviewDocId] = useState<string | null>(null)
 
@@ -358,11 +363,16 @@ export function KnowledgeBasePage() {
     }
   }
 
-  const handleDeleteCollection = async (id: string, name: string) => {
-    if (!confirm(`确定删除知识库「${name}」？所有文档和对话将被永久删除。`)) return
-    await deleteCollection(id)
-    if (selectedCollectionId === id) setSelectedCollectionId(null)
-    await loadCollections()
+  const handleArchiveCollection = async () => {
+    if (!archiveTarget) return
+    try {
+      await archiveCollection(archiveTarget.id, keepConversations)
+      if (selectedCollectionId === archiveTarget.id) setSelectedCollectionId(null)
+      setArchiveTarget(null)
+      await loadCollections()
+    } catch (err: any) {
+      alert(err?.response?.data?.detail || '归档失败')
+    }
   }
 
   // ── Upload with progress ──
@@ -462,9 +472,9 @@ export function KnowledgeBasePage() {
     }
   }
 
-  const handleDeleteDocument = async (doc: Document) => {
-    if (!confirm(`确定删除「${doc.filename}」？`)) return
-    await deleteDocument(doc.id)
+  const handleArchiveDocument = async (doc: Document) => {
+    if (!confirm(`确定归档「${doc.filename}」？归档后可从回收站恢复。`)) return
+    await archiveDocument(doc.id)
     await loadDocuments(selectedCollectionId!)
     await loadCollections()
   }
@@ -549,10 +559,10 @@ export function KnowledgeBasePage() {
                         <Pencil size={14} />
                       </button>
                       <button
-                        onClick={(e) => { e.stopPropagation(); handleDeleteCollection(col.id, col.name) }}
+                        onClick={(e) => { e.stopPropagation(); setArchiveTarget(col); setKeepConversations(true) }}
                         className="btn-ghost p-1"
                         style={{ color: 'var(--text-dim)' }}
-                        title="删除知识库"
+                        title="归档知识库"
                       >
                         <Trash2 size={14} />
                       </button>
@@ -762,9 +772,10 @@ export function KnowledgeBasePage() {
                           </>
                         )}
                         <button
-                          onClick={() => handleDeleteDocument(doc)}
+                          onClick={() => handleArchiveDocument(doc)}
                           className="btn-ghost p-1 opacity-0 group-hover:opacity-100 transition-all"
                           style={{ color: 'var(--text-dim)' }}
+                          title="归档文档"
                         >
                           <Trash2 size={16} />
                         </button>
@@ -841,6 +852,76 @@ export function KnowledgeBasePage() {
                 </button>
                 <button onClick={handleSaveCollection} className="btn-primary">
                   {editingCollection ? '保存' : '创建'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Archive Collection Confirmation Modal */}
+      <AnimatePresence>
+        {archiveTarget && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setArchiveTarget(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="glass-panel p-6 w-full max-w-md"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                     style={{ background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.2)' }}>
+                  <AlertTriangle size={20} className="text-[var(--accent-gold)]" />
+                </div>
+                <div>
+                  <h3 className="font-semibold" style={{ color: 'var(--text-primary)' }}>归档知识库</h3>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                    归档后可从回收站恢复
+                  </p>
+                </div>
+              </div>
+
+              <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>
+                确定要归档 <strong style={{ color: 'var(--text-primary)' }}>「{archiveTarget.name}」</strong> 吗？
+                知识库及其文档将被移至回收站。
+              </p>
+
+              {/* Keep conversations checkbox */}
+              <label className="flex items-center gap-3 mb-6 p-3 rounded-lg cursor-pointer transition-all duration-200"
+                     style={{
+                       background: keepConversations ? 'rgba(59,130,246,0.08)' : 'var(--bg-input)',
+                       border: keepConversations ? '1px solid rgba(59,130,246,0.25)' : '1px solid var(--border-glass)',
+                     }}>
+                <input
+                  type="checkbox"
+                  checked={keepConversations}
+                  onChange={(e) => setKeepConversations(e.target.checked)}
+                  className="w-4 h-4 rounded accent-[var(--accent-blue)]"
+                />
+                <div>
+                  <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                    保留相关对话记录
+                  </span>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                    勾选后，对话可在聊天页查看历史记录，但无法继续对话
+                  </p>
+                </div>
+              </label>
+
+              <div className="flex gap-3 justify-end">
+                <button onClick={() => setArchiveTarget(null)} className="btn-secondary">
+                  取消
+                </button>
+                <button onClick={handleArchiveCollection} className="btn-primary">
+                  归档知识库
                 </button>
               </div>
             </motion.div>
