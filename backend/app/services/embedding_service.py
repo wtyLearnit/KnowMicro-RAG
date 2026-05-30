@@ -32,9 +32,15 @@ class EmbeddingService:
         if not texts:
             return []
 
+        # Filter out empty texts that would cause API errors
+        valid_texts = [t for t in texts if t and t.strip()]
+        if not valid_texts:
+            logger.warning("All texts were empty, skipping embedding")
+            return []
+
         results: List[List[float]] = []
-        for start in range(0, len(texts), self.batch_size):
-            batch = texts[start:start + self.batch_size]
+        for start in range(0, len(valid_texts), self.batch_size):
+            batch = valid_texts[start:start + self.batch_size]
             results.extend(await self._embed_batch(batch))
         return results
 

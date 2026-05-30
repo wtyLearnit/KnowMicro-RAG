@@ -130,14 +130,14 @@ class RAGService:
         return retrieved
 
     # ── Context Building ────────────────────────────
-    def build_context(self, retrieved: List[Dict[str, Any]]) -> str:
+    def build_context(self, retrieved: List[Dict[str, Any]], top_k: int = 5) -> str:
         """Build formatted context string from retrieved chunks."""
         if not retrieved:
             return ""
 
         parts = []
         seen_docs = set()
-        for item in retrieved[:5]:  # Cap at 5 chunks for context window
+        for item in retrieved[:top_k]:
             doc_name = item["doc_name"]
             text = item["chunk_text"].strip()
 
@@ -160,7 +160,7 @@ class RAGService:
     ) -> Dict[str, Any]:
         """Non-streaming RAG query: retrieve → generate."""
         retrieved = await self.retrieve(collection_id, user_message, top_k)
-        context = self.build_context(retrieved)
+        context = self.build_context(retrieved, top_k)
 
         response = await llm_service.chat(user_message, history, context, mode)
 
@@ -191,7 +191,7 @@ class RAGService:
         Yields {type: "chunk"|"sources", content/chunk, sources}.
         """
         retrieved = await self.retrieve(collection_id, user_message, top_k)
-        context = self.build_context(retrieved)
+        context = self.build_context(retrieved, top_k)
 
         # Stream LLM response
         async for chunk in llm_service.chat_stream(user_message, history, context, mode):

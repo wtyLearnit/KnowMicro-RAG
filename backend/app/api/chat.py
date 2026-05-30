@@ -15,6 +15,7 @@ from app.schemas.schemas import (
     ConversationRename, MessageUpdate, RegenerateRequest,
 )
 from app.services.rag_service import rag_service
+from app.services.llm_service import llm_service
 from app.services.exceptions import ExternalServiceError
 
 router = APIRouter(tags=["chat"])
@@ -75,11 +76,14 @@ async def chat(
     req: ChatRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """RAG-powered chat: retrieve context from knowledge base, then generate."""
-    # Verify collection
-    collection = await db.get(Collection, req.collection_id)
-    if not collection:
-        raise HTTPException(404, "知识库不存在")
+    """RAG-powered chat or free chat (no knowledge base)."""
+    is_free = not req.collection_id
+
+    # Verify collection (only for KB chat)
+    if not is_free:
+        collection = await db.get(Collection, req.collection_id)
+        if not collection:
+            raise HTTPException(404, "知识库不存在")
 
     # Get or create conversation
     if req.conversation_id:
@@ -90,7 +94,7 @@ async def chat(
         conversation = Conversation(
             collection_id=req.collection_id,
             title=req.message[:50] + ("..." if len(req.message) > 50 else ""),
-            model_used="rag",
+            model_used="llm" if is_free else "rag",
         )
         db.add(conversation)
         await db.commit()
@@ -118,21 +122,28 @@ async def chat(
     db.add(user_msg)
     await db.commit()
 
-    # Run RAG pipeline
-    response = await rag_service.query(
-        collection_id=req.collection_id,
-        user_message=req.message,
-        history=history,
-        top_k=req.top_k,
-        mode=req.mode,
-    )
+    # Run pipeline
+    if is_free:
+        # Free chat: pure LLM, no RAG
+        response = await llm_service.chat(req.message, history, context="", mode=req.mode)
+        sources = []
+    else:
+        # RAG chat
+        response = await rag_service.query(
+            collection_id=req.collection_id,
+            user_message=req.message,
+            history=history,
+            top_k=req.top_k,
+            mode=req.mode,
+        )
+        sources = response.get("sources", [])
 
     # Save assistant message
     assistant_msg = Message(
         conversation_id=conversation.id,
         role="assistant",
         content=response["content"],
-        sources=response.get("sources", []),
+        sources=sources,
     )
     db.add(assistant_msg)
     await db.commit()
@@ -142,7 +153,7 @@ async def chat(
         conversation_id=conversation.id,
         message_id=assistant_msg.id,
         content=response["content"],
-        sources=response.get("sources", []),
+        sources=sources,
         usage=response.get("usage", {}),
     )
 
@@ -152,11 +163,14 @@ async def chat_stream(
     req: ChatRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """Streaming RAG chat via Server-Sent Events."""
-    # Verify collection
-    collection = await db.get(Collection, req.collection_id)
-    if not collection:
-        raise HTTPException(404, "知识库不存在")
+    """Streaming chat via Server-Sent Events (RAG or free chat)."""
+    is_free = not req.collection_id
+
+    # Verify collection (only for KB chat)
+    if not is_free:
+        collection = await db.get(Collection, req.collection_id)
+        if not collection:
+            raise HTTPException(404, "知识库不存在")
 
     # Get or create conversation
     if req.conversation_id:
@@ -167,7 +181,7 @@ async def chat_stream(
         conversation = Conversation(
             collection_id=req.collection_id,
             title=req.message[:50] + ("..." if len(req.message) > 50 else ""),
-            model_used="rag",
+            model_used="llm" if is_free else "rag",
         )
         db.add(conversation)
         await db.commit()
@@ -193,6 +207,10 @@ async def chat_stream(
     await db.commit()
 
     conversation_id = conversation.id
+    collection_id = req.collection_id
+    top_k = req.top_k
+    mode = req.mode
+    user_message = req.message
 
     async def event_stream():
         full_content = ""
@@ -200,19 +218,33 @@ async def chat_stream(
         errored = False
 
         try:
-            async for event in rag_service.query_stream(
-                collection_id=req.collection_id,
-                user_message=req.message,
-                history=history,
-                top_k=req.top_k,
-                mode=req.mode,
-            ):
-                if event["type"] == "chunk":
-                    full_content += event["content"]
-                    yield f"data: {json.dumps({'type': 'chunk', 'content': event['content']}, ensure_ascii=False)}\n\n"
-                elif event["type"] == "sources":
-                    sources = event["sources"]
-                    yield f"data: {json.dumps({'type': 'sources', 'sources': sources}, ensure_ascii=False)}\n\n"
+            if is_free:
+                # Free chat: pure LLM, no RAG retrieval
+                async for chunk in llm_service.chat_stream(
+                    user_message=user_message,
+                    history=history,
+                    context="",
+                    mode=mode,
+                ):
+                    full_content += chunk
+                    yield f"data: {json.dumps({'type': 'chunk', 'content': chunk}, ensure_ascii=False)}\n\n"
+                # Send empty sources for consistency
+                yield f"data: {json.dumps({'type': 'sources', 'sources': []}, ensure_ascii=False)}\n\n"
+            else:
+                # RAG chat
+                async for event in rag_service.query_stream(
+                    collection_id=collection_id,
+                    user_message=user_message,
+                    history=history,
+                    top_k=top_k,
+                    mode=mode,
+                ):
+                    if event["type"] == "chunk":
+                        full_content += event["content"]
+                        yield f"data: {json.dumps({'type': 'chunk', 'content': event['content']}, ensure_ascii=False)}\n\n"
+                    elif event["type"] == "sources":
+                        sources = event["sources"]
+                        yield f"data: {json.dumps({'type': 'sources', 'sources': sources}, ensure_ascii=False)}\n\n"
         except ExternalServiceError as e:
             errored = True
             yield f"data: {json.dumps({'type': 'error', 'message': e.message}, ensure_ascii=False)}\n\n"
@@ -248,6 +280,35 @@ async def chat_stream(
 
 # ── Conversations ───────────────────────────────────
 conv_router = APIRouter(prefix="/api/conversations", tags=["conversations"])
+
+
+@conv_router.get("/free", response_model=List[ConversationOut])
+async def list_free_conversations(
+    db: AsyncSession = Depends(get_db),
+):
+    """List conversations without a knowledge base (free chat)."""
+    result = await db.execute(
+        select(Conversation)
+        .where(Conversation.collection_id.is_(None))
+        .order_by(Conversation.updated_at.desc())
+    )
+    conversations = result.scalars().all()
+
+    out = []
+    for conv in conversations:
+        msg_count = await db.scalar(
+            select(func.count(Message.id)).where(Message.conversation_id == conv.id)
+        )
+        out.append(ConversationOut(
+            id=conv.id,
+            collection_id=None,
+            title=conv.title,
+            model_used=conv.model_used,
+            message_count=msg_count or 0,
+            created_at=conv.created_at,
+            updated_at=conv.updated_at,
+        ))
+    return out
 
 
 @conv_router.get("/{collection_id}", response_model=List[ConversationOut])
@@ -398,10 +459,13 @@ async def regenerate_response_stream(
     - Deletes the existing assistant reply (the next message after the user message).
     - Streams a new reply via SSE.
     """
-    # Verify collection
-    collection = await db.get(Collection, collection_id)
-    if not collection:
-        raise HTTPException(404, "知识库不存在")
+    is_free = collection_id == "free"
+
+    # Verify collection (skip for free chat)
+    if not is_free:
+        collection = await db.get(Collection, collection_id)
+        if not collection:
+            raise HTTPException(404, "知识库不存在")
 
     conv = await db.get(Conversation, conversation_id)
     if not conv:
@@ -450,19 +514,31 @@ async def regenerate_response_stream(
         errored = False
 
         try:
-            async for event in rag_service.query_stream(
-                collection_id=collection_id,
-                user_message=user_message_text,
-                history=history,
-                top_k=req.top_k,
-                mode=req.mode,
-            ):
-                if event["type"] == "chunk":
-                    full_content += event["content"]
-                    yield f"data: {json.dumps({'type': 'chunk', 'content': event['content']}, ensure_ascii=False)}\n\n"
-                elif event["type"] == "sources":
-                    sources = event["sources"]
-                    yield f"data: {json.dumps({'type': 'sources', 'sources': sources}, ensure_ascii=False)}\n\n"
+            if is_free:
+                # Free chat: pure LLM, no RAG
+                async for chunk in llm_service.chat_stream(
+                    user_message=user_message_text,
+                    history=history,
+                    context="",
+                    mode=req.mode,
+                ):
+                    full_content += chunk
+                    yield f"data: {json.dumps({'type': 'chunk', 'content': chunk}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'type': 'sources', 'sources': []}, ensure_ascii=False)}\n\n"
+            else:
+                async for event in rag_service.query_stream(
+                    collection_id=collection_id,
+                    user_message=user_message_text,
+                    history=history,
+                    top_k=req.top_k,
+                    mode=req.mode,
+                ):
+                    if event["type"] == "chunk":
+                        full_content += event["content"]
+                        yield f"data: {json.dumps({'type': 'chunk', 'content': event['content']}, ensure_ascii=False)}\n\n"
+                    elif event["type"] == "sources":
+                        sources = event["sources"]
+                        yield f"data: {json.dumps({'type': 'sources', 'sources': sources}, ensure_ascii=False)}\n\n"
         except ExternalServiceError as e:
             errored = True
             yield f"data: {json.dumps({'type': 'error', 'message': e.message}, ensure_ascii=False)}\n\n"
@@ -509,14 +585,22 @@ async def branch_conversation(
     into a new conversation.
     Body: { "message_id": "...", "title": "..." }
     """
+    is_free = collection_id == "free"
     message_id = req.get("message_id")
     title = req.get("title", "分支对话")
     if not message_id:
         raise HTTPException(400, "缺少 message_id")
 
     conv = await db.get(Conversation, conversation_id)
-    if not conv or conv.collection_id != collection_id:
+    if not conv:
         raise HTTPException(404, "对话不存在")
+    # Verify ownership: free chat convs have null collection_id
+    if is_free:
+        if conv.collection_id is not None:
+            raise HTTPException(404, "对话不存在")
+    else:
+        if conv.collection_id != collection_id:
+            raise HTTPException(404, "对话不存在")
 
     # Get the branch point message
     branch_msg = await db.get(Message, message_id)
@@ -536,9 +620,9 @@ async def branch_conversation(
 
     # Create new conversation
     new_conv = Conversation(
-        collection_id=collection_id,
+        collection_id=None if is_free else collection_id,
         title=title,
-        model_used="rag",
+        model_used="llm" if is_free else "rag",
     )
     db.add(new_conv)
     await db.commit()

@@ -3,6 +3,7 @@ import axios from 'axios';
 import type {
   Collection, Document, Conversation, Message,
   ChatResponse, SearchResponse, Stats, SystemConfig, UploadResponse,
+  DocumentPreview,
 } from '../types';
 
 const api = axios.create({
@@ -33,6 +34,26 @@ export const uploadDocument = (collectionId: string, file: File) => {
   return api.post<UploadResponse>(`/documents/upload/${collectionId}`, form).then(r => r.data);
 };
 
+export const uploadDocumentWithProgress = (
+  collectionId: string,
+  file: File,
+  onProgress: (percent: number) => void,
+) => {
+  const form = new FormData();
+  form.append('file', file);
+  return api.post<UploadResponse>(`/documents/upload/${collectionId}`, form, {
+    timeout: 600000,  // 10 min for large files
+    onUploadProgress: (e) => {
+      if (e.total) {
+        onProgress(Math.round((e.loaded * 100) / e.total));
+      }
+    },
+  }).then(r => r.data);
+};
+
+export const getDocumentPreview = (documentId: string) =>
+  api.get<DocumentPreview>(`/documents/${documentId}`).then(r => r.data);
+
 export const listDocuments = (collectionId: string) =>
   api.get<Document[]>(`/documents/collection/${collectionId}`).then(r => r.data);
 
@@ -50,7 +71,7 @@ export const sendMessage = (data: {
 
 export const streamMessage = (
   data: {
-    collection_id: string;
+    collection_id?: string;
     message: string;
     conversation_id?: string;
     top_k?: number;
@@ -121,6 +142,9 @@ export const streamMessage = (
 export const listConversations = (collectionId: string) =>
   api.get<Conversation[]>(`/conversations/${collectionId}`).then(r => r.data);
 
+export const listFreeConversations = () =>
+  api.get<Conversation[]>('/conversations/free').then(r => r.data);
+
 export const getMessages = (collectionId: string, conversationId: string) =>
   api.get<Message[]>(`/conversations/${collectionId}/${conversationId}`).then(r => r.data);
 
@@ -144,6 +168,7 @@ export const regenerateResponse = (
   conversationId: string,
   messageId: string,
   mode: 'socratic' | 'direct',
+  topK: number,
   onChunk: (text: string) => void,
   onSources: (sources: any[]) => void,
   onDone: (convId: string) => void,
@@ -154,7 +179,7 @@ export const regenerateResponse = (
   fetch(`/api/conversations/${collectionId}/${conversationId}/messages/${messageId}/regenerate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ mode, top_k: 5 }),
+    body: JSON.stringify({ mode, top_k: topK }),
     signal: controller.signal,
   }).then(async (response) => {
     if (!response.ok) {

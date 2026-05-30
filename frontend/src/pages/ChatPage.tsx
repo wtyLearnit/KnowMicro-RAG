@@ -6,12 +6,13 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Send, BookOpen, ChevronDown, Plus, Trash2, Loader2, X,
   FileText, Sparkles, RotateCcw, Database, Check,
-  Pencil, Copy, GitBranch, CheckCheck,
+  Pencil, Copy, GitBranch, CheckCheck, SlidersHorizontal,
+  MessageCircle,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import {
   listCollections, getCollection,
-  listConversations, getMessages, deleteConversation,
+  listConversations, listFreeConversations, getMessages, deleteConversation,
   streamMessage, renameConversation, editMessage, deleteMessage,
   regenerateResponse, branchConversation,
 } from '../services/api'
@@ -158,8 +159,11 @@ export function ChatPage() {
   useTheme()
 
   const [collections, setCollections] = useState<Collection[]>([])
+  const [isFreeChat, setIsFreeChat] = useState(urlCollectionId === 'free')
   const [activeCollectionId, setActiveCollectionId] = useState<string | null>(
-    urlCollectionId || localStorage.getItem('lastCollectionId') || null
+    urlCollectionId && urlCollectionId !== 'free'
+      ? urlCollectionId
+      : localStorage.getItem('lastCollectionId') || null
   )
   const [activeCollection, setActiveCollection] = useState<Collection | null>(null)
   const [conversations, setConversations] = useState<Conversation[]>([])
@@ -174,6 +178,11 @@ export function ChatPage() {
   const [mode, setMode] = useState<'socratic' | 'direct'>(() => {
     return (localStorage.getItem('chatMode') as 'socratic' | 'direct') || 'socratic'
   })
+  const [topK, setTopK] = useState<number>(() => {
+    const saved = localStorage.getItem('chatTopK')
+    return saved ? parseInt(saved, 10) : 5
+  })
+  const [showTopKPanel, setShowTopKPanel] = useState(false)
 
   // ── Feature 1: Rename ──
   const [renamingConvId, setRenamingConvId] = useState<string | null>(null)
@@ -195,25 +204,47 @@ export function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | null>(null)
   const renameInputRef = useRef<HTMLInputElement>(null)
+  const topKRef = useRef<HTMLDivElement>(null)
+
+  // Close Top-K panel on outside click
+  useEffect(() => {
+    if (!showTopKPanel) return
+    const handler = (e: MouseEvent) => {
+      if (topKRef.current && !topKRef.current.contains(e.target as Node)) {
+        setShowTopKPanel(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showTopKPanel])
+
+  // scopeId: the ID used in API paths ("free" for free chat, actual collection_id otherwise)
+  const scopeId = isFreeChat ? 'free' : activeCollectionId
 
   useEffect(() => {
     listCollections().then(setCollections).catch(() => {})
   }, [])
 
-  // Sync URL with activeCollectionId
+  // Sync URL with activeCollectionId / isFreeChat
   useEffect(() => {
-    if (activeCollectionId && !urlCollectionId) {
+    if (isFreeChat && urlCollectionId !== 'free') {
+      navigate('/chat/free', { replace: true })
+    } else if (activeCollectionId && !urlCollectionId) {
       navigate(`/chat/${activeCollectionId}`, { replace: true })
     }
   }, [])
 
+  // Load conversations and collection details based on mode
   useEffect(() => {
-    if (activeCollectionId) {
+    if (isFreeChat) {
+      setActiveCollection(null)
+      listFreeConversations().then(setConversations).catch(() => {})
+    } else if (activeCollectionId) {
       localStorage.setItem('lastCollectionId', activeCollectionId)
       getCollection(activeCollectionId).then(setActiveCollection).catch(() => {})
       listConversations(activeCollectionId).then(setConversations).catch(() => {})
     }
-  }, [activeCollectionId])
+  }, [activeCollectionId, isFreeChat])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -231,26 +262,28 @@ export function ChatPage() {
   }, [renamingConvId])
 
   const loadConversation = useCallback(async (convId: string) => {
-    if (!activeCollectionId) return
+    if (!scopeId) return
     setActiveConvId(convId)
     setEditingMsgId(null)
     setRegeneratingMsgId(null)
     try {
-      const msgs = await getMessages(activeCollectionId, convId)
+      const msgs = await getMessages(scopeId, convId)
       setMessages(msgs)
     } catch {
       setMessages([])
     }
-  }, [activeCollectionId])
+  }, [scopeId])
 
   const refreshConversationList = useCallback(() => {
-    if (activeCollectionId) {
+    if (isFreeChat) {
+      listFreeConversations().then(setConversations).catch(() => {})
+    } else if (activeCollectionId) {
       listConversations(activeCollectionId).then(setConversations).catch(() => {})
     }
-  }, [activeCollectionId])
+  }, [activeCollectionId, isFreeChat])
 
   const handleSend = async () => {
-    if (!input.trim() || !activeCollectionId || streaming || regeneratingMsgId) return
+    if (!input.trim() || (!activeCollectionId && !isFreeChat) || streaming || regeneratingMsgId) return
     const userMessage = input.trim()
     setInput('')
     setStreaming(true)
@@ -272,13 +305,15 @@ export function ChatPage() {
     // Local accumulators for this stream
     let accumulatedContent = ''
     let accumulatedSources: SourceItem[] = []
+    const currentScopeId = scopeId!
 
     const abort = streamMessage(
       {
-        collection_id: activeCollectionId,
+        collection_id: isFreeChat ? undefined : activeCollectionId!,
         message: userMessage,
         conversation_id: activeConvId ?? undefined,
         mode: mode,
+        top_k: topK,
       },
       (chunk) => {
         accumulatedContent += chunk
@@ -309,7 +344,7 @@ export function ChatPage() {
           setActiveConvId(convId)
         }
         // Refresh messages from server to get real IDs
-        getMessages(activeCollectionId, convId).then(setMessages).catch(() => {})
+        getMessages(currentScopeId, convId).then(setMessages).catch(() => {})
         refreshConversationList()
       },
       (err) => {
@@ -328,12 +363,12 @@ export function ChatPage() {
   }
 
   const handleConfirmRename = async () => {
-    if (!renamingConvId || !activeCollectionId || !renameTitle.trim()) {
+    if (!renamingConvId || !scopeId || !renameTitle.trim()) {
       setRenamingConvId(null)
       return
     }
     try {
-      await renameConversation(activeCollectionId, renamingConvId, renameTitle.trim())
+      await renameConversation(scopeId, renamingConvId, renameTitle.trim())
       setConversations(prev => prev.map(c =>
         c.id === renamingConvId ? { ...c, title: renameTitle.trim() } : c
       ))
@@ -350,12 +385,12 @@ export function ChatPage() {
   }
 
   const handleConfirmEdit = async () => {
-    if (!editingMsgId || !activeCollectionId || !activeConvId || !editContent.trim()) {
+    if (!editingMsgId || !scopeId || !activeConvId || !editContent.trim()) {
       setEditingMsgId(null)
       return
     }
     try {
-      await editMessage(activeCollectionId, activeConvId, editingMsgId, editContent.trim())
+      await editMessage(scopeId, activeConvId, editingMsgId, editContent.trim())
       setMessages(prev => prev.map(m =>
         m.id === editingMsgId ? { ...m, content: editContent.trim() } : m
       ))
@@ -366,9 +401,9 @@ export function ChatPage() {
   }
 
   const handleDeleteMessage = async (msgId: string) => {
-    if (!activeCollectionId || !activeConvId) return
+    if (!scopeId || !activeConvId) return
     try {
-      await deleteMessage(activeCollectionId, activeConvId, msgId)
+      await deleteMessage(scopeId, activeConvId, msgId)
       // Remove the deleted message and all subsequent messages from local state
       const idx = messages.findIndex(m => m.id === msgId)
       if (idx !== -1) {
@@ -381,7 +416,7 @@ export function ChatPage() {
 
   // ── Feature 3: Regenerate handler ──
   const handleRegenerate = async (userMsg: Message, assistantMsg: Message) => {
-    if (!activeCollectionId || !activeConvId || streaming || regeneratingMsgId) return
+    if (!scopeId || !activeConvId || streaming || regeneratingMsgId) return
 
     setRegeneratingMsgId(assistantMsg.id)
     setRegenContent('')
@@ -393,12 +428,14 @@ export function ChatPage() {
 
     let accumulatedContent = ''
     let accumulatedSources: SourceItem[] = []
+    const currentScopeId = scopeId
 
     const abort = regenerateResponse(
-      activeCollectionId,
+      currentScopeId,
       activeConvId,
       userMsg.id,
       mode,
+      topK,
       (chunk) => {
         accumulatedContent += chunk
         setRegenContent(prev => prev + chunk)
@@ -424,14 +461,14 @@ export function ChatPage() {
         setRegenContent('')
         setRegenSources([])
         // Refresh from server for real IDs
-        getMessages(activeCollectionId, convId).then(setMessages).catch(() => {})
+        getMessages(currentScopeId, convId).then(setMessages).catch(() => {})
       },
       (err) => {
         console.error('Regenerate error:', err)
         setError(err?.message || '重新生成失败')
         setRegeneratingMsgId(null)
         // Restore old message on failure
-        getMessages(activeCollectionId, activeConvId).then(setMessages).catch(() => {})
+        getMessages(currentScopeId, activeConvId).then(setMessages).catch(() => {})
       },
     )
     abortRef.current = { abort: () => abort.abort() } as AbortController
@@ -467,13 +504,13 @@ export function ChatPage() {
 
   // ── Feature 5: Branch handler ──
   const handleBranch = async (msgId: string) => {
-    if (!activeCollectionId || !activeConvId) return
+    if (!scopeId || !activeConvId) return
     try {
-      const newConv = await branchConversation(activeCollectionId, activeConvId, msgId)
+      const newConv = await branchConversation(scopeId, activeConvId, msgId)
       refreshConversationList()
       // Switch to the new branch
       setActiveConvId(newConv.id)
-      const msgs = await getMessages(activeCollectionId, newConv.id)
+      const msgs = await getMessages(scopeId, newConv.id)
       setMessages(msgs)
     } catch {
       setError('创建分支失败')
@@ -481,8 +518,8 @@ export function ChatPage() {
   }
 
   const handleDeleteConv = async (convId: string) => {
-    if (!activeCollectionId) return
-    await deleteConversation(activeCollectionId, convId)
+    if (!scopeId) return
+    await deleteConversation(scopeId, convId)
     if (activeConvId === convId) {
       setActiveConvId(null)
       setMessages([])
@@ -517,8 +554,8 @@ export function ChatPage() {
 
   return (
     <div className="h-[calc(100vh-3.5rem)]">
-      {!activeCollectionId ? (
-        /* No collection selected */
+      {!activeCollectionId && !isFreeChat ? (
+        /* No collection selected and not in free chat */
         <div className="flex-1 flex items-center justify-center h-full">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -531,20 +568,49 @@ export function ChatPage() {
               <BookOpen size={36} className="text-[var(--accent-blue)]" />
             </div>
             <div>
-              <p className="text-xl font-serif" style={{ color: 'var(--text-primary)' }}>请先选择一个知识库</p>
+              <p className="text-xl font-serif" style={{ color: 'var(--text-primary)' }}>开始你的对话</p>
               <p className="text-sm mt-2" style={{ color: 'var(--text-muted)' }}>
-                选择知识库后即可与苏格拉底展开对话
+                选择知识库进行 RAG 对话，或直接开始自由对话
               </p>
             </div>
-            <div className="max-w-xs mx-auto">
+            <div className="max-w-xs mx-auto space-y-3">
               <CollectionSelect
                 collections={collections}
                 value={activeCollectionId}
                 onChange={(id) => {
+                  setIsFreeChat(false)
                   setActiveCollectionId(id || null)
                   navigate(id ? `/chat/${id}` : '/chat')
                 }}
               />
+              <button
+                onClick={() => {
+                  setIsFreeChat(true)
+                  setActiveConvId(null)
+                  setMessages([])
+                  navigate('/chat/free')
+                }}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200"
+                style={{
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border-glass)',
+                  color: 'var(--text-primary)',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'var(--bg-card-hover)'
+                  e.currentTarget.style.borderColor = 'var(--accent-blue)'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'var(--bg-card)'
+                  e.currentTarget.style.borderColor = 'var(--border-glass)'
+                }}
+              >
+                <MessageCircle size={20} className="text-[var(--accent-blue)]" />
+                <div className="text-left">
+                  <div className="text-sm font-medium">自由对话</div>
+                  <div className="text-xs" style={{ color: 'var(--text-muted)' }}>不依赖知识库，直接与苏格拉底对话</div>
+                </div>
+              </button>
             </div>
           </motion.div>
         </div>
@@ -554,18 +620,72 @@ export function ChatPage() {
           <Panel defaultSize="28%" minSize="20%" maxSize="45%">
             <div className="h-full flex flex-col border-r overflow-hidden min-w-0"
                  style={{ borderColor: 'var(--border-glass)', background: 'var(--bg-sidebar)' }}>
-              {/* Collection selector */}
+              {/* Collection selector / Free chat indicator */}
               <div className="p-3 border-b" style={{ borderColor: 'var(--border-glass)' }}>
-                <CollectionSelect
-                  collections={collections}
-                  value={activeCollectionId}
-                  onChange={(id) => {
-                    setActiveCollectionId(id || null)
-                    setActiveConvId(null)
-                    setMessages([])
-                    navigate(id ? `/chat/${id}` : '/chat')
-                  }}
-                />
+                {isFreeChat ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg"
+                         style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)' }}>
+                      <MessageCircle size={16} className="text-[var(--accent-blue)]" />
+                      <span className="text-sm font-medium" style={{ color: 'var(--accent-blue)' }}>自由对话</span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setIsFreeChat(false)
+                        setActiveConvId(null)
+                        setMessages([])
+                        navigate('/chat')
+                      }}
+                      className="w-full text-xs px-3 py-1.5 rounded-lg transition-all duration-200"
+                      style={{ color: 'var(--text-muted)', border: '1px solid var(--border-glass)' }}
+                      onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--accent-blue)'; e.currentTarget.style.borderColor = 'var(--accent-blue)' }}
+                      onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--border-glass)' }}
+                    >
+                      ← 切换到知识库对话
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <CollectionSelect
+                      collections={collections}
+                      value={activeCollectionId}
+                      onChange={(id) => {
+                        setIsFreeChat(false)
+                        setActiveCollectionId(id || null)
+                        setActiveConvId(null)
+                        setMessages([])
+                        navigate(id ? `/chat/${id}` : '/chat')
+                      }}
+                    />
+                    <button
+                      onClick={() => {
+                        setIsFreeChat(true)
+                        setActiveCollectionId(null)
+                        setActiveConvId(null)
+                        setMessages([])
+                        navigate('/chat/free')
+                      }}
+                      className="w-full mt-2 flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all duration-200"
+                      style={{
+                        color: 'var(--text-secondary)',
+                        border: '1px solid var(--border-glass)',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.color = 'var(--accent-blue)'
+                        e.currentTarget.style.borderColor = 'var(--accent-blue)'
+                        e.currentTarget.style.background = 'rgba(59,130,246,0.05)'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.color = 'var(--text-secondary)'
+                        e.currentTarget.style.borderColor = 'var(--border-glass)'
+                        e.currentTarget.style.background = 'transparent'
+                      }}
+                    >
+                      <MessageCircle size={16} />
+                      <span>自由对话</span>
+                    </button>
+                  </>
+                )}
               </div>
 
               {/* New conversation */}
@@ -955,8 +1075,8 @@ export function ChatPage() {
 
               {/* Input */}
               <div className="border-t p-4" style={{ borderColor: 'var(--border-glass)', background: 'var(--bg-sidebar)' }}>
-                {/* Mode toggle */}
-                <div className="flex items-center gap-2 mb-3">
+                {/* Mode toggle + Top-K selector */}
+                <div className="flex items-center gap-2 mb-3 flex-wrap">
                   <div className="flex rounded-lg p-0.5" style={{ background: 'var(--bg-input)', border: '1px solid var(--border-glass)' }}>
                     <button
                       onClick={() => {
@@ -990,6 +1110,85 @@ export function ChatPage() {
                   <span className="text-xs" style={{ color: 'var(--text-dim)' }}>
                     {mode === 'socratic' ? '引导式提问，启发思考' : '直接给出答案'}
                   </span>
+
+                  {/* Top-K selector (hidden in free chat mode) */}
+                  {!isFreeChat && (
+                  <div className="relative ml-auto" ref={topKRef}>
+                    <button
+                      onClick={() => setShowTopKPanel(!showTopKPanel)}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs transition-all duration-200"
+                      style={{
+                        background: 'var(--bg-input)',
+                        border: '1px solid var(--border-glass)',
+                        color: 'var(--text-secondary)',
+                      }}
+                    >
+                      <SlidersHorizontal size={12} />
+                      <span>检索 {topK} 条</span>
+                      <ChevronDown size={12} className={`transition-transform ${showTopKPanel ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    <AnimatePresence>
+                      {showTopKPanel && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -8 }}
+                          className="absolute bottom-full right-0 mb-2 w-64 glass-panel p-3 z-50"
+                          style={{ boxShadow: '0 -8px 30px rgba(0,0,0,0.15)' }}
+                        >
+                          <div className="text-xs font-medium mb-2" style={{ color: 'var(--text-primary)' }}>
+                            参考来源条数
+                          </div>
+                          <div className="space-y-1">
+                            {[
+                              { value: 3, label: '3 条', desc: '快速精准，适合简单问题' },
+                              { value: 5, label: '5 条', desc: '默认推荐，平衡速度与质量' },
+                              { value: 8, label: '8 条', desc: '广泛检索，适合复杂问题' },
+                              { value: 10, label: '10 条', desc: '深度搜索，覆盖更多内容' },
+                              { value: 15, label: '15 条', desc: '全面检索，适合对比分析' },
+                              { value: 20, label: '20 条', desc: '最大范围，响应较慢' },
+                            ].map(opt => (
+                              <button
+                                key={opt.value}
+                                onClick={() => {
+                                  setTopK(opt.value)
+                                  localStorage.setItem('chatTopK', String(opt.value))
+                                  setShowTopKPanel(false)
+                                }}
+                                className="w-full text-left px-3 py-2 rounded-lg transition-all duration-150"
+                                style={{
+                                  background: topK === opt.value ? 'rgba(59,130,246,0.12)' : 'transparent',
+                                  border: topK === opt.value ? '1px solid rgba(59,130,246,0.3)' : '1px solid transparent',
+                                }}
+                                onMouseEnter={(e) => {
+                                  if (topK !== opt.value) {
+                                    e.currentTarget.style.background = 'var(--bg-card-hover)'
+                                  }
+                                }}
+                                onMouseLeave={(e) => {
+                                  if (topK !== opt.value) {
+                                    e.currentTarget.style.background = 'transparent'
+                                  }
+                                }}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm font-medium" style={{ color: topK === opt.value ? 'var(--accent-blue)' : 'var(--text-primary)' }}>
+                                    {opt.label}
+                                  </span>
+                                  {topK === opt.value && <Check size={14} className="text-[var(--accent-blue)]" />}
+                                </div>
+                                <div className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                                  {opt.desc}
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                  )}
                 </div>
 
                 <div className="flex gap-3">
@@ -1002,7 +1201,11 @@ export function ChatPage() {
                         handleSend()
                       }
                     }}
-                    placeholder={mode === 'socratic' ? '向苏格拉底提问...' : '输入你的问题...'}
+                    placeholder={
+                      isFreeChat
+                        ? '自由对话模式，随意提问...'
+                        : mode === 'socratic' ? '向苏格拉底提问...' : '输入你的问题...'
+                    }
                     rows={2}
                     className="input-field flex-1 resize-none"
                     disabled={streaming || !!regeneratingMsgId}
@@ -1020,6 +1223,11 @@ export function ChatPage() {
                   {activeCollection && (
                     <span className="ml-2">
                       · 当前: <span className="text-[var(--accent-blue)]">{activeCollection.name}</span>
+                    </span>
+                  )}
+                  {isFreeChat && (
+                    <span className="ml-2">
+                      · <span className="text-[var(--accent-blue)]">自由对话模式</span>
                     </span>
                   )}
                 </p>

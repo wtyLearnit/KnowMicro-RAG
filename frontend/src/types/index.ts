@@ -22,9 +22,25 @@ export interface Document {
   created_at: string;
 }
 
+export interface DocumentChunk {
+  index: number;
+  text: string;
+  char_count: number;
+}
+
+export interface DocumentPreview {
+  document_id: string;
+  filename: string;
+  file_type: string;
+  file_size: number;
+  chunk_count: number;
+  content: string;
+  chunks: DocumentChunk[];
+}
+
 export interface Conversation {
   id: string;
-  collection_id: string;
+  collection_id: string | null;
   title: string;
   model_used: string;
   message_count: number;

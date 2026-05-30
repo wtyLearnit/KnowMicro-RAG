@@ -136,6 +136,9 @@ class ChunkingService:
 
         return chunks
 
+    # 8192 tokens ≈ 6000 Chinese chars (safe margin for any tokenizer)
+    MAX_CHUNK_CHARS = 6000
+
     # ── Auto-detect Strategy ────────────────────────
     def auto_chunk(self, text: str, file_type: str = "txt") -> List[str]:
         """Pick the best strategy based on file type."""
@@ -150,7 +153,24 @@ class ChunkingService:
             chunks = self.recursive_split(text)
 
         # Filter empty/whitespace chunks
-        return [c for c in chunks if c.strip() and len(c.strip()) > 10]
+        chunks = [c for c in chunks if c.strip() and len(c.strip()) > 10]
+
+        # Safety: hard-split any chunk that exceeds the embedding model limit
+        safe_chunks = []
+        for c in chunks:
+            if len(c) <= self.MAX_CHUNK_CHARS:
+                safe_chunks.append(c)
+            else:
+                # Force-split oversized chunks
+                start = 0
+                while start < len(c):
+                    end = min(start + self.MAX_CHUNK_CHARS, len(c))
+                    piece = c[start:end]
+                    if piece.strip():
+                        safe_chunks.append(piece)
+                    start += self.MAX_CHUNK_CHARS - self.chunk_overlap
+
+        return safe_chunks
 
 
 chunking_service = ChunkingService(

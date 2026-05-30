@@ -55,6 +55,22 @@ class DocumentUploadResponse(BaseModel):
     status: str
 
 
+class DocumentChunk(BaseModel):
+    index: int
+    text: str
+    char_count: int
+
+
+class DocumentPreview(BaseModel):
+    document_id: str
+    filename: str
+    file_type: str
+    file_size: int
+    chunk_count: int
+    content: str
+    chunks: List[DocumentChunk]
+
+
 # ── Search ──────────────────────────────────────────
 class SearchRequest(BaseModel):
     query: str = Field(..., min_length=1)
@@ -77,7 +93,7 @@ class SearchResponse(BaseModel):
 
 # ── Chat / RAG ──────────────────────────────────────
 class ChatRequest(BaseModel):
-    collection_id: str
+    collection_id: Optional[str] = None
     message: str = Field(..., min_length=1)
     conversation_id: Optional[str] = None
     top_k: int = Field(default=5, ge=1, le=20)
@@ -102,7 +118,7 @@ class ChatResponse(BaseModel):
 # ── Conversation ────────────────────────────────────
 class ConversationOut(BaseModel):
     id: str
-    collection_id: str
+    collection_id: Optional[str] = None
     title: str
     model_used: str
     message_count: int = 0
