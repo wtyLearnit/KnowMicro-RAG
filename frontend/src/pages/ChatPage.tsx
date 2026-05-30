@@ -1,17 +1,19 @@
-﻿/* 苏格拉底之窗 - Chat Page */
+/* 苏格拉底之窗 - Chat Page */
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from 'react-resizable-panels'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Send, BookOpen, ChevronDown, Plus, Trash2, Loader2, X,
-  FileText, GripVertical, Sparkles, RotateCcw, Database, Check,
+  FileText, Sparkles, RotateCcw, Database, Check,
+  Pencil, Copy, GitBranch, CheckCheck,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import {
   listCollections, getCollection,
   listConversations, getMessages, deleteConversation,
-  streamMessage,
+  streamMessage, renameConversation, editMessage, deleteMessage,
+  regenerateResponse, branchConversation,
 } from '../services/api'
 import { useTheme } from '../components/ThemeContext'
 import type { Collection, Conversation, Message, SourceItem } from '../types'
@@ -153,7 +155,7 @@ function CollectionSelect({
 export function ChatPage() {
   const { collectionId: urlCollectionId } = useParams()
   const navigate = useNavigate()
-  const { theme } = useTheme()
+  useTheme()
 
   const [collections, setCollections] = useState<Collection[]>([])
   const [activeCollectionId, setActiveCollectionId] = useState<string | null>(
@@ -173,8 +175,26 @@ export function ChatPage() {
     return (localStorage.getItem('chatMode') as 'socratic' | 'direct') || 'socratic'
   })
 
+  // ── Feature 1: Rename ──
+  const [renamingConvId, setRenamingConvId] = useState<string | null>(null)
+  const [renameTitle, setRenameTitle] = useState('')
+
+  // ── Feature 2: Edit Message ──
+  const [editingMsgId, setEditingMsgId] = useState<string | null>(null)
+  const [editContent, setEditContent] = useState('')
+
+  // ── Feature 3: Regenerate ──
+  const [regeneratingMsgId, setRegeneratingMsgId] = useState<string | null>(null)
+  const [regenContent, setRegenContent] = useState('')
+  const [regenSources, setRegenSources] = useState<SourceItem[]>([])
+
+  // ── Feature 4: Export ──
+  const [copied, setCopied] = useState(false)
+  const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null)
+
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | null>(null)
+  const renameInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     listCollections().then(setCollections).catch(() => {})
@@ -197,15 +217,24 @@ export function ChatPage() {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, streamingContent])
+  }, [messages, streamingContent, regenContent])
 
   useEffect(() => {
     return () => { abortRef.current?.abort() }
   }, [])
 
+  // Focus rename input when entering rename mode
+  useEffect(() => {
+    if (renamingConvId) {
+      setTimeout(() => renameInputRef.current?.focus(), 50)
+    }
+  }, [renamingConvId])
+
   const loadConversation = useCallback(async (convId: string) => {
     if (!activeCollectionId) return
     setActiveConvId(convId)
+    setEditingMsgId(null)
+    setRegeneratingMsgId(null)
     try {
       const msgs = await getMessages(activeCollectionId, convId)
       setMessages(msgs)
@@ -214,8 +243,14 @@ export function ChatPage() {
     }
   }, [activeCollectionId])
 
+  const refreshConversationList = useCallback(() => {
+    if (activeCollectionId) {
+      listConversations(activeCollectionId).then(setConversations).catch(() => {})
+    }
+  }, [activeCollectionId])
+
   const handleSend = async () => {
-    if (!input.trim() || !activeCollectionId || streaming) return
+    if (!input.trim() || !activeCollectionId || streaming || regeneratingMsgId) return
     const userMessage = input.trim()
     setInput('')
     setStreaming(true)
@@ -273,9 +308,9 @@ export function ChatPage() {
         if (!activeConvId) {
           setActiveConvId(convId)
         }
-        if (activeCollectionId) {
-          listConversations(activeCollectionId).then(setConversations).catch(() => {})
-        }
+        // Refresh messages from server to get real IDs
+        getMessages(activeCollectionId, convId).then(setMessages).catch(() => {})
+        refreshConversationList()
       },
       (err) => {
         console.error('Stream error:', err)
@@ -286,6 +321,165 @@ export function ChatPage() {
     abortRef.current = { abort: () => abort.abort() } as AbortController
   }
 
+  // ── Feature 1: Rename handlers ──
+  const handleStartRename = (conv: Conversation) => {
+    setRenamingConvId(conv.id)
+    setRenameTitle(conv.title)
+  }
+
+  const handleConfirmRename = async () => {
+    if (!renamingConvId || !activeCollectionId || !renameTitle.trim()) {
+      setRenamingConvId(null)
+      return
+    }
+    try {
+      await renameConversation(activeCollectionId, renamingConvId, renameTitle.trim())
+      setConversations(prev => prev.map(c =>
+        c.id === renamingConvId ? { ...c, title: renameTitle.trim() } : c
+      ))
+    } catch {
+      setError('重命名失败')
+    }
+    setRenamingConvId(null)
+  }
+
+  // ── Feature 2: Edit/Delete handlers ──
+  const handleStartEdit = (msg: Message) => {
+    setEditingMsgId(msg.id)
+    setEditContent(msg.content)
+  }
+
+  const handleConfirmEdit = async () => {
+    if (!editingMsgId || !activeCollectionId || !activeConvId || !editContent.trim()) {
+      setEditingMsgId(null)
+      return
+    }
+    try {
+      await editMessage(activeCollectionId, activeConvId, editingMsgId, editContent.trim())
+      setMessages(prev => prev.map(m =>
+        m.id === editingMsgId ? { ...m, content: editContent.trim() } : m
+      ))
+    } catch {
+      setError('编辑失败')
+    }
+    setEditingMsgId(null)
+  }
+
+  const handleDeleteMessage = async (msgId: string) => {
+    if (!activeCollectionId || !activeConvId) return
+    try {
+      await deleteMessage(activeCollectionId, activeConvId, msgId)
+      // Remove the deleted message and all subsequent messages from local state
+      const idx = messages.findIndex(m => m.id === msgId)
+      if (idx !== -1) {
+        setMessages(prev => prev.slice(0, idx))
+      }
+    } catch {
+      setError('删除失败')
+    }
+  }
+
+  // ── Feature 3: Regenerate handler ──
+  const handleRegenerate = async (userMsg: Message, assistantMsg: Message) => {
+    if (!activeCollectionId || !activeConvId || streaming || regeneratingMsgId) return
+
+    setRegeneratingMsgId(assistantMsg.id)
+    setRegenContent('')
+    setRegenSources([])
+    setError(null)
+
+    // Remove the old assistant message from display
+    setMessages(prev => prev.filter(m => m.id !== assistantMsg.id))
+
+    let accumulatedContent = ''
+    let accumulatedSources: SourceItem[] = []
+
+    const abort = regenerateResponse(
+      activeCollectionId,
+      activeConvId,
+      userMsg.id,
+      mode,
+      (chunk) => {
+        accumulatedContent += chunk
+        setRegenContent(prev => prev + chunk)
+      },
+      (sources) => {
+        accumulatedSources = sources
+        setRegenSources(sources)
+        if (sources.length > 0) setShowSources(true)
+      },
+      (convId) => {
+        if (accumulatedContent) {
+          const newAssistantMsg: Message = {
+            id: 'regen-' + Date.now(),
+            conversation_id: convId,
+            role: 'assistant',
+            content: accumulatedContent,
+            sources: accumulatedSources,
+            created_at: new Date().toISOString(),
+          }
+          setMessages(prev => [...prev, newAssistantMsg])
+        }
+        setRegeneratingMsgId(null)
+        setRegenContent('')
+        setRegenSources([])
+        // Refresh from server for real IDs
+        getMessages(activeCollectionId, convId).then(setMessages).catch(() => {})
+      },
+      (err) => {
+        console.error('Regenerate error:', err)
+        setError(err?.message || '重新生成失败')
+        setRegeneratingMsgId(null)
+        // Restore old message on failure
+        getMessages(activeCollectionId, activeConvId).then(setMessages).catch(() => {})
+      },
+    )
+    abortRef.current = { abort: () => abort.abort() } as AbortController
+  }
+
+  // ── Feature 4: Export handler ──
+  const handleExport = async () => {
+    if (messages.length === 0) return
+    const text = messages.map(m => {
+      const role = m.role === 'user' ? '我' : '苏格拉底'
+      return `${role}:\n${m.content}`
+    }).join('\n\n---\n\n')
+
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      setError('复制失败，请手动复制')
+    }
+  }
+
+  // ── Copy single message ──
+  const handleCopyMessage = async (msg: Message) => {
+    try {
+      await navigator.clipboard.writeText(msg.content)
+      setCopiedMsgId(msg.id)
+      setTimeout(() => setCopiedMsgId(null), 2000)
+    } catch {
+      setError('复制失败')
+    }
+  }
+
+  // ── Feature 5: Branch handler ──
+  const handleBranch = async (msgId: string) => {
+    if (!activeCollectionId || !activeConvId) return
+    try {
+      const newConv = await branchConversation(activeCollectionId, activeConvId, msgId)
+      refreshConversationList()
+      // Switch to the new branch
+      setActiveConvId(newConv.id)
+      const msgs = await getMessages(activeCollectionId, newConv.id)
+      setMessages(msgs)
+    } catch {
+      setError('创建分支失败')
+    }
+  }
+
   const handleDeleteConv = async (convId: string) => {
     if (!activeCollectionId) return
     await deleteConversation(activeCollectionId, convId)
@@ -293,7 +487,7 @@ export function ChatPage() {
       setActiveConvId(null)
       setMessages([])
     }
-    listConversations(activeCollectionId).then(setConversations).catch(() => {})
+    refreshConversationList()
   }
 
   const handleNewConv = () => {
@@ -302,11 +496,24 @@ export function ChatPage() {
     setStreamingContent('')
     setStreamingSources([])
     setShowSources(false)
+    setEditingMsgId(null)
+    setRegeneratingMsgId(null)
   }
 
   const latestSources = streamingSources.length > 0
     ? streamingSources
-    : messages.filter(m => m.sources?.length).pop()?.sources ?? []
+    : regenSources.length > 0
+      ? regenSources
+      : messages.filter(m => m.sources?.length).pop()?.sources ?? []
+
+  // Get the user message that precedes a given assistant message
+  const getUserMsgForAssistant = (assistantMsg: Message): Message | null => {
+    const idx = messages.findIndex(m => m.id === assistantMsg.id)
+    if (idx > 0 && messages[idx - 1].role === 'user') {
+      return messages[idx - 1]
+    }
+    return null
+  }
 
   return (
     <div className="h-[calc(100vh-3.5rem)]">
@@ -376,6 +583,7 @@ export function ChatPage() {
               <div className="flex-1 overflow-y-auto px-2 space-y-1 pb-3">
                 {conversations.map(conv => {
                   const isActive = activeConvId === conv.id
+                  const isRenaming = renamingConvId === conv.id
                   return (
                     <div
                       key={conv.id}
@@ -385,7 +593,7 @@ export function ChatPage() {
                         background: isActive ? 'rgba(59,130,246,0.12)' : 'transparent',
                         border: isActive ? '1px solid rgba(59,130,246,0.25)' : '1px solid transparent',
                       }}
-                      onClick={() => loadConversation(conv.id)}
+                      onClick={() => !isRenaming && loadConversation(conv.id)}
                       onMouseEnter={(e) => {
                         if (!isActive) {
                           e.currentTarget.style.color = 'var(--text-primary)'
@@ -399,14 +607,48 @@ export function ChatPage() {
                         }
                       }}
                     >
-                      <span className="truncate flex-1">{conv.title}</span>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleDeleteConv(conv.id) }}
-                        className="opacity-0 group-hover:opacity-100 transition-all"
-                        style={{ color: 'var(--text-dim)' }}
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      {isRenaming ? (
+                        <input
+                          ref={renameInputRef}
+                          value={renameTitle}
+                          onChange={(e) => setRenameTitle(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleConfirmRename()
+                            if (e.key === 'Escape') setRenamingConvId(null)
+                          }}
+                          onBlur={handleConfirmRename}
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex-1 min-w-0 bg-transparent border-b text-sm outline-none"
+                          style={{
+                            color: 'var(--text-primary)',
+                            borderColor: 'var(--accent-blue)',
+                          }}
+                        />
+                      ) : (
+                        <span className="truncate flex-1">{conv.title}</span>
+                      )}
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleStartRename(conv) }}
+                          className="p-0.5 transition-colors"
+                          style={{ color: 'var(--text-dim)' }}
+                          onMouseEnter={(e) => e.currentTarget.style.color = 'var(--accent-blue)'}
+                          onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-dim)'}
+                          title="重命名"
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDeleteConv(conv.id) }}
+                          className="p-0.5 transition-colors"
+                          style={{ color: 'var(--text-dim)' }}
+                          onMouseEnter={(e) => e.currentTarget.style.color = 'rgb(239, 68, 68)'}
+                          onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-dim)'}
+                          title="删除对话"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
                     </div>
                   )
                 })}
@@ -425,9 +667,40 @@ export function ChatPage() {
           {/* Center - Chat */}
           <Panel defaultSize={showSources ? "47%" : "72%"} minSize="30%">
             <div className="h-full flex flex-col">
+              {/* Header bar with export button */}
+              {activeConvId && messages.length > 0 && (
+                <div className="flex items-center justify-end px-4 py-2 border-b" style={{ borderColor: 'var(--border-glass)' }}>
+                  <button
+                    onClick={handleExport}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all duration-200"
+                    style={{
+                      color: copied ? 'rgb(34, 197, 94)' : 'var(--text-muted)',
+                      background: copied ? 'rgba(34, 197, 94, 0.1)' : 'var(--bg-input)',
+                      border: '1px solid var(--border-glass)',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!copied) {
+                        e.currentTarget.style.color = 'var(--text-primary)'
+                        e.currentTarget.style.background = 'var(--bg-card-hover)'
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!copied) {
+                        e.currentTarget.style.color = 'var(--text-muted)'
+                        e.currentTarget.style.background = 'var(--bg-input)'
+                      }
+                    }}
+                    title="复制对话"
+                  >
+                    {copied ? <CheckCheck size={14} /> : <Copy size={14} />}
+                    {copied ? '已复制' : '导出对话'}
+                  </button>
+                </div>
+              )}
+
               {/* Messages */}
               <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
-                {messages.length === 0 && !streaming && (
+                {messages.length === 0 && !streaming && !regeneratingMsgId && (
                   <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
@@ -443,7 +716,7 @@ export function ChatPage() {
                 )}
 
                 <AnimatePresence>
-                  {messages.map(msg => (
+                  {messages.map((msg) => (
                     <motion.div
                       key={msg.id}
                       initial={{ opacity: 0, y: 10 }}
@@ -451,7 +724,7 @@ export function ChatPage() {
                       transition={{ duration: 0.3 }}
                       className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
-                      <div className={`max-w-[80%] ${msg.role === 'user' ? 'order-1' : ''}`}>
+                      <div className={`max-w-[80%] group/msg ${msg.role === 'user' ? 'order-1' : ''}`}>
                         <div
                           className="rounded-2xl px-5 py-3.5"
                           style={{
@@ -463,7 +736,37 @@ export function ChatPage() {
                             backdropFilter: msg.role === 'assistant' ? 'blur(20px)' : undefined,
                           }}
                         >
-                          {msg.role === 'user' ? (
+                          {/* Feature 2: Edit mode for user messages */}
+                          {editingMsgId === msg.id ? (
+                            <div className="space-y-2">
+                              <textarea
+                                value={editContent}
+                                onChange={(e) => setEditContent(e.target.value)}
+                                className="w-full min-h-[80px] bg-transparent border rounded-lg px-3 py-2 text-sm outline-none resize-y"
+                                style={{
+                                  color: 'var(--text-primary)',
+                                  borderColor: 'var(--accent-blue)',
+                                }}
+                                autoFocus
+                              />
+                              <div className="flex items-center gap-2 justify-end">
+                                <button
+                                  onClick={() => setEditingMsgId(null)}
+                                  className="px-2.5 py-1 rounded-md text-xs transition-colors"
+                                  style={{ color: 'var(--text-muted)', background: 'var(--bg-input)' }}
+                                >
+                                  取消
+                                </button>
+                                <button
+                                  onClick={handleConfirmEdit}
+                                  className="px-2.5 py-1 rounded-md text-xs transition-colors"
+                                  style={{ color: '#fff', background: 'var(--accent-blue)' }}
+                                >
+                                  保存
+                                </button>
+                              </div>
+                            </div>
+                          ) : msg.role === 'user' ? (
                             <p className="whitespace-pre-wrap" style={{ color: 'var(--text-primary)' }}>{msg.content}</p>
                           ) : (
                             <div className="prose-content text-sm">
@@ -472,25 +775,114 @@ export function ChatPage() {
                           )}
                         </div>
 
-                        {/* Sources button */}
+                        {/* Sources button — always visible, own row */}
                         {msg.sources && msg.sources.length > 0 && (
-                          <button
-                            onClick={() => setShowSources(!showSources)}
-                            className="mt-2 text-xs flex items-center gap-1 transition-colors"
-                            style={{ color: 'var(--text-muted)' }}
-                            onMouseEnter={(e) => e.currentTarget.style.color = 'var(--accent-blue)'}
-                            onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
-                          >
-                            <FileText size={12} />
-                            参考来源 ({msg.sources.length})
-                          </button>
+                          <div className="mt-1.5">
+                            <button
+                              onClick={() => setShowSources(!showSources)}
+                              className="text-xs flex items-center gap-1 transition-colors"
+                              style={{ color: 'var(--text-muted)' }}
+                              onMouseEnter={(e) => e.currentTarget.style.color = 'var(--accent-blue)'}
+                              onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
+                            >
+                              <FileText size={12} />
+                              参考来源 ({msg.sources.length})
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Action buttons — hover-only, zero height when hidden */}
+                        {!streaming && !regeneratingMsgId && editingMsgId !== msg.id && (
+                          <div className="h-0 overflow-visible opacity-0 group-hover/msg:opacity-100 group-hover/msg:mt-1.5 transition-all">
+                            <div className="flex items-center gap-1">
+                              {/* Copy single message */}
+                              <button
+                                onClick={() => handleCopyMessage(msg)}
+                                className="text-xs flex items-center gap-1 transition-colors px-1.5 py-0.5 rounded"
+                                style={{ color: copiedMsgId === msg.id ? 'rgb(34, 197, 94)' : 'var(--text-dim)' }}
+                                onMouseEnter={(e) => {
+                                  if (copiedMsgId !== msg.id) e.currentTarget.style.color = 'var(--accent-blue)'
+                                }}
+                                onMouseLeave={(e) => {
+                                  if (copiedMsgId !== msg.id) e.currentTarget.style.color = 'var(--text-dim)'
+                                }}
+                                title={copiedMsgId === msg.id ? '已复制' : '复制此消息'}
+                              >
+                                {copiedMsgId === msg.id
+                                  ? <><CheckCheck size={11} /><span className="text-[10px]">已复制</span></>
+                                  : <><Copy size={11} /><span className="text-[10px]">复制</span></>
+                                }
+                              </button>
+
+                              {/* User message: Edit & Delete */}
+                              {msg.role === 'user' && (
+                                <>
+                                  <button
+                                    onClick={() => handleStartEdit(msg)}
+                                    className="text-xs flex items-center gap-1 transition-colors px-1.5 py-0.5 rounded"
+                                    style={{ color: 'var(--text-dim)' }}
+                                    onMouseEnter={(e) => e.currentTarget.style.color = 'var(--accent-blue)'}
+                                    onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-dim)'}
+                                    title="编辑消息"
+                                  >
+                                    <Pencil size={11} />
+                                    <span className="text-[10px]">编辑</span>
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteMessage(msg.id)}
+                                    className="text-xs flex items-center gap-1 transition-colors px-1.5 py-0.5 rounded"
+                                    style={{ color: 'var(--text-dim)' }}
+                                    onMouseEnter={(e) => e.currentTarget.style.color = 'rgb(239, 68, 68)'}
+                                    onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-dim)'}
+                                    title="删除此消息及之后所有消息"
+                                  >
+                                    <Trash2 size={11} />
+                                    <span className="text-[10px]">删除</span>
+                                  </button>
+                                </>
+                              )}
+
+                              {/* Assistant message: Regenerate */}
+                              {msg.role === 'assistant' && (() => {
+                                const userMsg = getUserMsgForAssistant(msg)
+                                return userMsg ? (
+                                  <button
+                                    onClick={() => handleRegenerate(userMsg, msg)}
+                                    className="text-xs flex items-center gap-1 transition-colors px-1.5 py-0.5 rounded"
+                                    style={{ color: 'var(--text-dim)' }}
+                                    onMouseEnter={(e) => e.currentTarget.style.color = 'var(--accent-blue)'}
+                                    onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-dim)'}
+                                    title="重新生成回复"
+                                  >
+                                    <RotateCcw size={11} />
+                                    <span className="text-[10px]">重新生成</span>
+                                  </button>
+                                ) : null
+                              })()}
+
+                              {/* Branch */}
+                              {activeConvId && (
+                                <button
+                                  onClick={() => handleBranch(msg.id)}
+                                  className="text-xs flex items-center gap-1 transition-colors px-1.5 py-0.5 rounded"
+                                  style={{ color: 'var(--text-dim)' }}
+                                  onMouseEnter={(e) => e.currentTarget.style.color = 'var(--accent-purple, #a855f7)'}
+                                  onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-dim)'}
+                                  title="从此处创建分支对话"
+                                >
+                                  <GitBranch size={11} />
+                                  <span className="text-[10px]">分支</span>
+                                </button>
+                              )}
+                            </div>
+                          </div>
                         )}
                       </div>
                     </motion.div>
                   ))}
                 </AnimatePresence>
 
-                {/* Streaming message */}
+                {/* Streaming message (normal send) */}
                 {streaming && (
                   <motion.div
                     initial={{ opacity: 0 }}
@@ -506,6 +898,28 @@ export function ChatPage() {
                         <div className="flex items-center gap-2" style={{ color: 'var(--text-muted)' }}>
                           <Loader2 size={16} className="animate-spin" />
                           <span className="text-sm">思考中...</span>
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Streaming message (regenerate) */}
+                {regeneratingMsgId && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="flex justify-start"
+                  >
+                    <div className="max-w-[80%] glass-panel rounded-2xl rounded-bl-md px-5 py-3.5">
+                      {regenContent ? (
+                        <div className="prose-content text-sm">
+                          <ReactMarkdown>{regenContent}</ReactMarkdown>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2" style={{ color: 'var(--text-muted)' }}>
+                          <Loader2 size={16} className="animate-spin" />
+                          <span className="text-sm">重新生成中...</span>
                         </div>
                       )}
                     </div>
@@ -591,11 +1005,11 @@ export function ChatPage() {
                     placeholder={mode === 'socratic' ? '向苏格拉底提问...' : '输入你的问题...'}
                     rows={2}
                     className="input-field flex-1 resize-none"
-                    disabled={streaming}
+                    disabled={streaming || !!regeneratingMsgId}
                   />
                   <button
                     onClick={handleSend}
-                    disabled={!input.trim() || streaming}
+                    disabled={!input.trim() || streaming || !!regeneratingMsgId}
                     className="btn-primary self-end flex items-center gap-2"
                   >
                     <Send size={16} />

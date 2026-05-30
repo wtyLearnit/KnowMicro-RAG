@@ -8,7 +8,7 @@ export function StarField() {
 
   useEffect(() => {
     const canvas = canvasRef.current
-    if (!canvas || theme === 'light') return
+    if (!canvas || theme === 'light' || theme === 'xuan') return
 
     const ctx = canvas.getContext('2d')
     if (!ctx) return
@@ -57,7 +57,7 @@ export function StarField() {
     }
   }, [theme])
 
-  if (theme === 'light') return null
+  if (theme === 'light' || theme === 'xuan') return null
 
   return (
     <canvas

@@ -1,16 +1,18 @@
-﻿"""
+"""
 苏格拉底之窗 - Chat & Search API Routes
 """
 from typing import List
 import json
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, delete as sql_delete
 from app.database import get_db, Collection, Conversation, Message
 from app.schemas.schemas import (
     ChatRequest, ChatResponse, SearchRequest, SearchResponse,
     SearchResultItem, ConversationOut, MessageOut,
+    ConversationRename, MessageUpdate, RegenerateRequest,
 )
 from app.services.rag_service import rag_service
 from app.services.exceptions import ExternalServiceError
@@ -305,3 +307,262 @@ async def delete_conversation(
         raise HTTPException(404, "对话不存在")
     await db.delete(conv)
     await db.commit()
+
+
+# ── Feature 1: Rename Conversation ─────────────────
+@conv_router.patch("/{collection_id}/{conversation_id}", response_model=ConversationOut)
+async def rename_conversation(
+    collection_id: str,
+    conversation_id: str,
+    req: ConversationRename,
+    db: AsyncSession = Depends(get_db),
+):
+    """Rename a conversation."""
+    conv = await db.get(Conversation, conversation_id)
+    if not conv:
+        raise HTTPException(404, "对话不存在")
+    conv.title = req.title
+    conv.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(conv)
+
+    msg_count = await db.scalar(
+        select(func.count(Message.id)).where(Message.conversation_id == conv.id)
+    )
+    return ConversationOut(
+        id=conv.id,
+        collection_id=conv.collection_id,
+        title=conv.title,
+        model_used=conv.model_used,
+        message_count=msg_count or 0,
+        created_at=conv.created_at,
+        updated_at=conv.updated_at,
+    )
+
+
+# ── Feature 2: Edit / Delete Message ───────────────
+@conv_router.put("/{collection_id}/{conversation_id}/messages/{message_id}", response_model=MessageOut)
+async def edit_message(
+    collection_id: str,
+    conversation_id: str,
+    message_id: str,
+    req: MessageUpdate,
+    db: AsyncSession = Depends(get_db),
+):
+    """Edit a user message's content."""
+    msg = await db.get(Message, message_id)
+    if not msg or msg.conversation_id != conversation_id:
+        raise HTTPException(404, "消息不存在")
+    if msg.role != "user":
+        raise HTTPException(400, "只能编辑用户消息")
+    msg.content = req.content
+    await db.commit()
+    await db.refresh(msg)
+    return msg
+
+
+@conv_router.delete("/{collection_id}/{conversation_id}/messages/{message_id}", status_code=204)
+async def delete_message(
+    collection_id: str,
+    conversation_id: str,
+    message_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete a message and all subsequent messages in the conversation."""
+    msg = await db.get(Message, message_id)
+    if not msg or msg.conversation_id != conversation_id:
+        raise HTTPException(404, "消息不存在")
+
+    # Delete this message and all messages created after it
+    await db.execute(
+        sql_delete(Message).where(
+            Message.conversation_id == conversation_id,
+            Message.created_at >= msg.created_at,
+        )
+    )
+    await db.commit()
+
+
+# ── Feature 3: Regenerate Response (streaming) ─────
+@conv_router.post("/{collection_id}/{conversation_id}/messages/{message_id}/regenerate")
+async def regenerate_response_stream(
+    collection_id: str,
+    conversation_id: str,
+    message_id: str,
+    req: RegenerateRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Regenerate the assistant reply for a given user message.
+    - message_id is the USER message whose assistant reply should be regenerated.
+    - Deletes the existing assistant reply (the next message after the user message).
+    - Streams a new reply via SSE.
+    """
+    # Verify collection
+    collection = await db.get(Collection, collection_id)
+    if not collection:
+        raise HTTPException(404, "知识库不存在")
+
+    conv = await db.get(Conversation, conversation_id)
+    if not conv:
+        raise HTTPException(404, "对话不存在")
+
+    user_msg = await db.get(Message, message_id)
+    if not user_msg or user_msg.conversation_id != conversation_id:
+        raise HTTPException(404, "消息不存在")
+    if user_msg.role != "user":
+        raise HTTPException(400, "只能对用户消息重新生成回复")
+
+    # Find and delete the assistant message that follows this user message
+    result = await db.execute(
+        select(Message)
+        .where(
+            Message.conversation_id == conversation_id,
+            Message.role == "assistant",
+            Message.created_at > user_msg.created_at,
+        )
+        .order_by(Message.created_at.asc())
+        .limit(1)
+    )
+    old_assistant_msg = result.scalar_one_or_none()
+    if old_assistant_msg:
+        await db.delete(old_assistant_msg)
+        await db.commit()
+
+    # Build history from messages BEFORE the user message
+    hist_result = await db.execute(
+        select(Message)
+        .where(
+            Message.conversation_id == conversation_id,
+            Message.created_at < user_msg.created_at,
+        )
+        .order_by(Message.created_at.desc())
+        .limit(20)
+    )
+    history_msgs = list(reversed(hist_result.scalars().all()))
+    history = [{"role": m.role, "content": m.content} for m in history_msgs]
+
+    user_message_text = user_msg.content
+
+    async def event_stream():
+        full_content = ""
+        sources = []
+        errored = False
+
+        try:
+            async for event in rag_service.query_stream(
+                collection_id=collection_id,
+                user_message=user_message_text,
+                history=history,
+                top_k=req.top_k,
+                mode=req.mode,
+            ):
+                if event["type"] == "chunk":
+                    full_content += event["content"]
+                    yield f"data: {json.dumps({'type': 'chunk', 'content': event['content']}, ensure_ascii=False)}\n\n"
+                elif event["type"] == "sources":
+                    sources = event["sources"]
+                    yield f"data: {json.dumps({'type': 'sources', 'sources': sources}, ensure_ascii=False)}\n\n"
+        except ExternalServiceError as e:
+            errored = True
+            yield f"data: {json.dumps({'type': 'error', 'message': e.message}, ensure_ascii=False)}\n\n"
+        except Exception:
+            errored = True
+            yield f"data: {json.dumps({'type': 'error', 'message': '生成回复时发生未知错误'}, ensure_ascii=False)}\n\n"
+
+        if full_content and not errored:
+            from app.database import async_session as db_session
+            async with db_session() as save_db:
+                assistant_msg = Message(
+                    conversation_id=conversation_id,
+                    role="assistant",
+                    content=full_content,
+                    sources=sources,
+                )
+                save_db.add(assistant_msg)
+                await save_db.commit()
+
+        yield f"data: {json.dumps({'type': 'done', 'conversation_id': conversation_id}, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+# ── Feature 5: Branch Conversation ─────────────────
+@conv_router.post("/{collection_id}/{conversation_id}/branch", response_model=ConversationOut)
+async def branch_conversation(
+    collection_id: str,
+    conversation_id: str,
+    req: dict,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Create a new conversation branched from a specific message.
+    Copies all messages up to (and including) the specified message_id
+    into a new conversation.
+    Body: { "message_id": "...", "title": "..." }
+    """
+    message_id = req.get("message_id")
+    title = req.get("title", "分支对话")
+    if not message_id:
+        raise HTTPException(400, "缺少 message_id")
+
+    conv = await db.get(Conversation, conversation_id)
+    if not conv or conv.collection_id != collection_id:
+        raise HTTPException(404, "对话不存在")
+
+    # Get the branch point message
+    branch_msg = await db.get(Message, message_id)
+    if not branch_msg or branch_msg.conversation_id != conversation_id:
+        raise HTTPException(404, "消息不存在")
+
+    # Get all messages up to and including the branch point
+    result = await db.execute(
+        select(Message)
+        .where(
+            Message.conversation_id == conversation_id,
+            Message.created_at <= branch_msg.created_at,
+        )
+        .order_by(Message.created_at.asc())
+    )
+    source_messages = result.scalars().all()
+
+    # Create new conversation
+    new_conv = Conversation(
+        collection_id=collection_id,
+        title=title,
+        model_used="rag",
+    )
+    db.add(new_conv)
+    await db.commit()
+    await db.refresh(new_conv)
+
+    # Copy messages
+    for msg in source_messages:
+        new_msg = Message(
+            conversation_id=new_conv.id,
+            role=msg.role,
+            content=msg.content,
+            sources=msg.sources,
+            token_count=msg.token_count,
+        )
+        db.add(new_msg)
+    await db.commit()
+
+    msg_count = len(source_messages)
+    return ConversationOut(
+        id=new_conv.id,
+        collection_id=new_conv.collection_id,
+        title=new_conv.title,
+        model_used=new_conv.model_used,
+        message_count=msg_count,
+        created_at=new_conv.created_at,
+        updated_at=new_conv.updated_at,
+    )

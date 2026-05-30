@@ -3,7 +3,7 @@ import { useState, type ReactNode } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   Home, MessageSquare, BookOpen, Settings, Menu, X,
-  Sparkles, Orbit,
+  Sparkles,
 } from 'lucide-react'
 import { StarField } from './StarField'
 import { useTheme } from './ThemeContext'
@@ -44,7 +44,9 @@ export function Layout({ children }: { children: ReactNode }) {
         style={{
           background: theme === 'light'
             ? 'linear-gradient(180deg, rgba(241,245,249,0.97) 0%, rgba(248,250,252,0.98) 100%)'
-            : 'linear-gradient(180deg, rgba(10,17,40,0.95) 0%, rgba(5,8,20,0.98) 100%)',
+            : theme === 'xuan'
+              ? 'linear-gradient(180deg, rgba(230,216,170,0.97) 0%, rgba(237,225,186,0.98) 100%)'
+              : 'linear-gradient(180deg, rgba(10,17,40,0.95) 0%, rgba(5,8,20,0.98) 100%)',
           borderColor: 'var(--border-glass)',
           transform: sidebarOpen ? 'translateX(0)' : undefined,
         }}
@@ -52,11 +54,7 @@ export function Layout({ children }: { children: ReactNode }) {
         {/* Logo */}
         <div className="p-5 border-b" style={{ borderColor: 'var(--border-glass)' }}>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[var(--accent-blue)] to-[var(--accent-purple)]
-                          flex items-center justify-center shadow-lg"
-                 style={{ boxShadow: '0 4px 14px rgba(59,130,246,0.3)' }}>
-              <Orbit size={20} className="text-white" />
-            </div>
+            <img src="/logo.png" alt="苏格拉底之窗" className="w-10 h-10 rounded-xl object-cover shadow-lg" />
             <div>
               <h1 className="font-serif font-bold text-lg leading-tight" style={{ color: 'var(--text-primary)' }}>
                 苏格拉底之窗
@@ -123,7 +121,9 @@ export function Layout({ children }: { children: ReactNode }) {
                   borderColor: 'var(--border-glass)',
                   background: theme === 'light'
                     ? 'rgba(248,250,252,0.8)'
-                    : 'rgba(5,8,20,0.8)',
+                    : theme === 'xuan'
+                      ? 'rgba(237,225,186,0.85)'
+                      : 'rgba(5,8,20,0.8)',
                 }}>
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}

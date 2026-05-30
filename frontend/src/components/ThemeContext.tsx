@@ -1,7 +1,7 @@
-/* Theme Context - 深邃蓝 / 晨光白 */
+/* Theme Context - 深邃蓝 / 晨光白 / 古宣纸 */
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 
-type Theme = 'cosmos' | 'light'
+type Theme = 'cosmos' | 'light' | 'xuan'
 
 interface ThemeContextValue {
   theme: Theme
@@ -15,10 +15,12 @@ const ThemeContext = createContext<ThemeContextValue>({
   toggleTheme: () => {},
 })
 
+const VALID_THEMES: Theme[] = ['cosmos', 'light', 'xuan']
+
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(() => {
-    const saved = localStorage.getItem('theme')
-    return (saved === 'cosmos' || saved === 'light') ? saved : 'cosmos'
+    const saved = localStorage.getItem('theme') as Theme | null
+    return saved && VALID_THEMES.includes(saved) ? saved : 'cosmos'
   })
 
   const setTheme = (t: Theme) => {
@@ -27,7 +29,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }
 
   const toggleTheme = () => {
-    setTheme(theme === 'cosmos' ? 'light' : 'cosmos')
+    const order: Theme[] = ['cosmos', 'light', 'xuan']
+    const next = order[(order.indexOf(theme) + 1) % order.length]
+    setTheme(next)
   }
 
   useEffect(() => {

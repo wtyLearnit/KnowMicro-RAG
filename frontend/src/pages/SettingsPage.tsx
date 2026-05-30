@@ -4,7 +4,7 @@ import { motion } from 'framer-motion'
 import {
   Cpu, Brain, Scissors, Server, AlertCircle,
   Database, Zap, MessageSquare, BookOpen, FileText,
-  Palette, Sun, Moon, Check,
+  Palette, Sun, Moon, ScrollText, Check,
 } from 'lucide-react'
 import { getStats, getConfig } from '../services/api'
 import { useTheme } from '../components/ThemeContext'
@@ -24,6 +24,13 @@ const themes = [
     desc: '清爽明亮，适合日间使用',
     icon: Sun,
     colors: ['#F8FAFC', '#F1F5F9', '#2563EB', '#7C3AED'],
+  },
+  {
+    id: 'xuan' as const,
+    name: '古宣纸',
+    desc: '淡黄宣纸质感，仿宋古韵字体',
+    icon: ScrollText,
+    colors: ['#F4EBC8', '#EDE1BA', '#1A4A6E', '#6B3A5C'],
   },
 ]
 
@@ -77,7 +84,7 @@ export function SettingsPage() {
           <Palette size={16} className="text-[var(--accent-purple)]" />
           主题风格
         </h3>
-        <div className="grid sm:grid-cols-2 gap-4">
+        <div className="grid sm:grid-cols-3 gap-4">
           {themes.map(t => {
             const Icon = t.icon
             const isActive = theme === t.id
