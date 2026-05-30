@@ -601,25 +601,33 @@ export function ChatPage() {
                   setMessages([])
                   navigate('/chat/free')
                 }}
-                className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200"
+                className="w-full flex items-center gap-3 px-4 py-4 rounded-xl transition-all duration-200"
                 style={{
-                  background: 'var(--bg-card)',
-                  border: '1px solid var(--border-glass)',
+                  background: 'linear-gradient(135deg, rgba(59,130,246,0.08), rgba(167,139,250,0.04))',
+                  border: '1px solid rgba(59,130,246,0.18)',
                   color: 'var(--text-primary)',
+                  boxShadow: '0 2px 12px rgba(59,130,246,0.06)',
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'var(--bg-card-hover)'
+                  e.currentTarget.style.background = 'linear-gradient(135deg, rgba(59,130,246,0.14), rgba(167,139,250,0.08))'
                   e.currentTarget.style.borderColor = 'var(--accent-blue)'
+                  e.currentTarget.style.boxShadow = '0 4px 20px rgba(59,130,246,0.12)'
+                  e.currentTarget.style.transform = 'translateY(-1px)'
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'var(--bg-card)'
-                  e.currentTarget.style.borderColor = 'var(--border-glass)'
+                  e.currentTarget.style.background = 'linear-gradient(135deg, rgba(59,130,246,0.08), rgba(167,139,250,0.04))'
+                  e.currentTarget.style.borderColor = 'rgba(59,130,246,0.18)'
+                  e.currentTarget.style.boxShadow = '0 2px 12px rgba(59,130,246,0.06)'
+                  e.currentTarget.style.transform = 'translateY(0)'
                 }}
               >
-                <MessageCircle size={20} className="text-[var(--accent-blue)]" />
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                     style={{ background: 'linear-gradient(135deg, rgba(59,130,246,0.15), rgba(167,139,250,0.1))' }}>
+                  <MessageCircle size={22} className="text-[var(--accent-blue)]" />
+                </div>
                 <div className="text-left">
                   <div className="text-sm font-medium">自由对话</div>
-                  <div className="text-xs" style={{ color: 'var(--text-muted)' }}>不依赖知识库，直接与苏格拉底对话</div>
+                  <div className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>不依赖知识库，直接与苏格拉底对话</div>
                 </div>
               </button>
 
@@ -645,7 +653,7 @@ export function ChatPage() {
                         getMessages('free', conv.id).then(setMessages).catch(() => setMessages([]))
                         navigate('/chat/free')
                       }}
-                      className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 text-left"
+                      className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 text-left"
                       style={{
                         background: 'var(--bg-card)',
                         border: '1px solid var(--border-glass)',
@@ -653,17 +661,22 @@ export function ChatPage() {
                       }}
                       onMouseEnter={(e) => {
                         e.currentTarget.style.background = 'var(--bg-card-hover)'
-                        e.currentTarget.style.borderColor = 'var(--accent-blue)'
+                        e.currentTarget.style.borderColor = 'var(--border-glass)'
+                        e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)'
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.style.background = 'var(--bg-card)'
                         e.currentTarget.style.borderColor = 'var(--border-glass)'
+                        e.currentTarget.style.boxShadow = 'none'
                       }}
                     >
-                      <MessageSquare size={18} style={{ color: 'var(--text-dim)' }} />
+                      <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+                           style={{ background: 'var(--bg-input)', border: '1px solid var(--border-glass)' }}>
+                        <MessageSquare size={16} style={{ color: 'var(--text-dim)' }} />
+                      </div>
                       <div className="min-w-0 text-left">
                         <div className="text-sm truncate">{conv.title}</div>
-                        <div className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
+                        <div className="text-xs truncate mt-0.5" style={{ color: 'var(--text-muted)' }}>
                           来自已删除的知识库 · {conv.message_count} 条消息
                         </div>
                       </div>
@@ -758,9 +771,24 @@ export function ChatPage() {
               <div className="p-3">
                 <button
                   onClick={handleNewConv}
-                  className="w-full btn-secondary text-sm flex items-center gap-2 justify-center"
+                  className="w-full text-sm flex items-center gap-2 justify-center py-2.5 rounded-lg transition-all duration-200"
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(59,130,246,0.1), rgba(59,130,246,0.04))',
+                    border: '1px solid rgba(59,130,246,0.18)',
+                    color: 'var(--accent-blue)',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'linear-gradient(135deg, rgba(59,130,246,0.18), rgba(59,130,246,0.08))'
+                    e.currentTarget.style.borderColor = 'var(--accent-blue)'
+                    e.currentTarget.style.boxShadow = '0 2px 12px rgba(59,130,246,0.1)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'linear-gradient(135deg, rgba(59,130,246,0.1), rgba(59,130,246,0.04))'
+                    e.currentTarget.style.borderColor = 'rgba(59,130,246,0.18)'
+                    e.currentTarget.style.boxShadow = 'none'
+                  }}
                 >
-                  <Plus size={16} />
+                  <Plus size={17} />
                   新对话
                 </button>
               </div>
