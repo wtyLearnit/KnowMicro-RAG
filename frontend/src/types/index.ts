@@ -63,6 +63,7 @@ export interface SourceItem {
   doc_name: string;
   chunk_text: string;
   score: number;
+  chunk_index: number;
 }
 
 export interface ChatResponse {
@@ -99,6 +100,9 @@ export interface SystemConfig {
   embed_dimensions: number;
   chunk_size: number;
   chunk_overlap: number;
+  hybrid_search_enabled: boolean;
+  reranker_enabled: boolean;
+  query_rewrite_enabled: boolean;
 }
 
 export interface UploadResponse {

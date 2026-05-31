@@ -1,4 +1,4 @@
-﻿"""
+"""
 苏格拉底之窗 - LLM Service
 Supports any OpenAI-compatible chat completion API with streaming.
 """
@@ -154,6 +154,58 @@ class LLMService:
             raise ExternalServiceError(
                 f"无法连接 LLM 服务：{_describe(e)}", service="llm"
             ) from e
+
+
+    async def rewrite_query(
+        self,
+        user_message: str,
+        history: List[Dict[str, str]],
+    ) -> str:
+        """
+        Generate a decontextualized, optimized search query from the user's
+        message and conversation history. Handles multi-turn context.
+        """
+        rewrite_prompt = (
+            "你的任务是将用户的多轮对话问题改写为一个独立的、优化过的检索查询。\n\n"
+            "规则：\n"
+            "1. 结合对话历史，将指代词（如「它」「那个」「这个方案」）替换为具体内容\n"
+            "2. 补全省略的关键上下文\n"
+            "3. 提取核心关键词，生成适合检索的简洁查询\n"
+            "4. 只输出改写后的查询，不要加任何解释或前缀\n"
+            "5. 如果原问题已经足够清晰完整，直接输出原问题\n"
+        )
+
+        messages: List[Dict[str, str]] = [
+            {"role": "system", "content": rewrite_prompt},
+        ]
+        # Include last 6 messages of history for context
+        if history:
+            messages.extend(history[-6:])
+        messages.append({"role": "user", "content": f"请改写以下问题用于检索：{user_message}"})
+
+        try:
+            async with httpx.AsyncClient(timeout=30.0, trust_env=False) as client:
+                resp = await client.post(
+                    f"{self.base_url}/chat/completions",
+                    json={
+                        "model": self.model,
+                        "messages": messages,
+                        "max_tokens": 200,
+                        "temperature": 0.1,
+                    },
+                    headers={
+                        "Authorization": f"Bearer {self.api_key}",
+                        "Content-Type": "application/json",
+                    },
+                )
+                if resp.status_code >= 400:
+                    # Non-critical: fall back to original message
+                    return user_message
+                data = resp.json()
+                rewritten = data["choices"][0]["message"]["content"].strip()
+                return rewritten if rewritten else user_message
+        except Exception:
+            return user_message
 
 
 llm_service = LLMService()

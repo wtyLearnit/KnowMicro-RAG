@@ -1,4 +1,4 @@
-﻿"""
+"""
 苏格拉底之窗 - Application Configuration
 """
 from pathlib import Path
@@ -34,6 +34,16 @@ class Settings(BaseSettings):
     chunk_size: int = 800
     chunk_overlap: int = 150
     max_document_size_mb: int = 50
+
+    # ── Retrieval ────────────────────────────────────
+    hybrid_search_enabled: bool = True
+    bm25_weight: float = 0.3
+    semantic_weight: float = 0.7
+    reranker_enabled: bool = True
+    reranker_model: str = "BAAI/bge-reranker-v2-m3"
+    reranker_top_n: int = 20
+    query_rewrite_enabled: bool = True
+    retrieval_top_k: int = 20
 
     # ── System Prompt ────────────────────────────────
     system_prompt: str = (

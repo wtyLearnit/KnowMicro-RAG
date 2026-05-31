@@ -8,17 +8,18 @@ import {
   FileText, Sparkles, RotateCcw, Database, Check,
   Pencil, Copy, GitBranch, CheckCheck, SlidersHorizontal,
   MessageCircle, MessageSquare, AlertTriangle,
+  History,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import {
   listCollections, getCollection,
   listConversations, listFreeConversations, listOrphanedConversations,
-  getMessages, archiveConversation,
+  getMessages, archiveConversation, getDocumentPreview,
   streamMessage, renameConversation, editMessage, deleteMessage,
   regenerateResponse, branchConversation,
 } from '../services/api'
 import { useTheme } from '../components/ThemeContext'
-import type { Collection, Conversation, Message, SourceItem } from '../types'
+import type { Collection, Conversation, Message, SourceItem, DocumentPreview, DocumentChunk } from '../types'
 
 /* ── Collection Select Dropdown ─────────────────── */
 function CollectionSelect({
@@ -187,6 +188,9 @@ export function ChatPage() {
   const [showTopKPanel, setShowTopKPanel] = useState(false)
   const [isOrphanedConv, setIsOrphanedConv] = useState(false)
 
+  // ── History panel ──
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false)
+
   // ── Feature 1: Rename ──
   const [renamingConvId, setRenamingConvId] = useState<string | null>(null)
   const [renameTitle, setRenameTitle] = useState('')
@@ -204,7 +208,14 @@ export function ChatPage() {
   const [copied, setCopied] = useState(false)
   const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null)
 
+  // ── Citation Navigation ──
+  const [previewDoc, setPreviewDoc] = useState<DocumentPreview | null>(null)
+  const [highlightChunkIndex, setHighlightChunkIndex] = useState<number | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
+  const isNearBottomRef = useRef(true)
   const abortRef = useRef<AbortController | null>(null)
   const renameInputRef = useRef<HTMLInputElement>(null)
   const topKRef = useRef<HTMLDivElement>(null)
@@ -251,8 +262,21 @@ export function ChatPage() {
     }
   }, [activeCollectionId, isFreeChat])
 
+  // Track whether the user is near the bottom of the message list.
+  // Only auto-scroll during streaming if the user hasn't scrolled up to read.
+  const handleMessagesScroll = useCallback(() => {
+    const el = messagesContainerRef.current
+    if (!el) return
+    const threshold = 80 // px from bottom to consider "following"
+    isNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < threshold
+  }, [])
+
+  // Auto-scroll to bottom only if the user is already following (near bottom).
+  // If they've scrolled up to read earlier content, don't yank them away.
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (isNearBottomRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
   }, [messages, streamingContent, regenContent])
 
   useEffect(() => {
@@ -271,6 +295,7 @@ export function ChatPage() {
     setActiveConvId(convId)
     setEditingMsgId(null)
     setRegeneratingMsgId(null)
+    isNearBottomRef.current = true
     // Check if this conversation is orphaned
     const conv = conversations.find(c => c.id === convId)
       ?? orphanedConversations.find(c => c.id === convId)
@@ -301,6 +326,9 @@ export function ChatPage() {
     setStreamingSources([])
     setError(null)
     setShowSources(false)
+
+    // User just sent a message — follow the response
+    isNearBottomRef.current = true
 
     const userMsg: Message = {
       id: 'temp-' + Date.now(),
@@ -548,6 +576,32 @@ export function ChatPage() {
     setIsOrphanedConv(false)
   }
 
+  // ── Citation click handler ──
+  const handleCitationClick = async (src: SourceItem) => {
+    if (!src.doc_id) return
+    setPreviewLoading(true)
+    setHighlightChunkIndex(src.chunk_index ?? null)
+    try {
+      const doc = await getDocumentPreview(src.doc_id)
+      setPreviewDoc(doc)
+    } catch {
+      setPreviewDoc(null)
+    }
+    setPreviewLoading(false)
+  }
+
+  // Scroll to highlighted chunk in document viewer
+  useEffect(() => {
+    if (previewDoc && highlightChunkIndex !== null) {
+      setTimeout(() => {
+        document.getElementById(`doc-chunk-${highlightChunkIndex}`)?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        })
+      }, 150)
+    }
+  }, [previewDoc, highlightChunkIndex])
+
   const latestSources = streamingSources.length > 0
     ? streamingSources
     : regenSources.length > 0
@@ -562,6 +616,14 @@ export function ChatPage() {
     }
     return null
   }
+
+  // ── History scroll handler ──
+  const handleScrollToMessage = useCallback((msgId: string) => {
+    setIsHistoryOpen(false)
+    setTimeout(() => {
+      document.getElementById(`msg-${msgId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 50)
+  }, [])
 
   return (
     <div className="h-[calc(100vh-3.5rem)]">
@@ -939,9 +1001,103 @@ export function ChatPage() {
                 </div>
               )}
 
-              {/* Header bar with export button */}
+              {/* Header bar with history & export */}
               {activeConvId && messages.length > 0 && (
-                <div className="flex items-center justify-end px-4 py-2 border-b" style={{ borderColor: 'var(--border-glass)' }}>
+                <div className="flex items-center justify-between px-4 py-2 border-b" style={{ borderColor: 'var(--border-glass)' }}>
+                  {/* Left: History trigger */}
+                  <div
+                    className="relative"
+                    onMouseEnter={() => setIsHistoryOpen(true)}
+                    onMouseLeave={() => setIsHistoryOpen(false)}
+                  >
+                    <button
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs transition-all duration-200"
+                      style={{
+                        color: isHistoryOpen ? 'var(--accent-blue)' : 'var(--text-muted)',
+                        background: isHistoryOpen ? 'rgba(59,130,246,0.1)' : 'transparent',
+                        border: '1px solid transparent',
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isHistoryOpen) {
+                          e.currentTarget.style.color = 'var(--text-primary)'
+                          e.currentTarget.style.background = 'var(--bg-card-hover)'
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isHistoryOpen) {
+                          e.currentTarget.style.color = 'var(--text-muted)'
+                          e.currentTarget.style.background = 'transparent'
+                        }
+                      }}
+                    >
+                      <History size={14} />
+                      <span>历史消息</span>
+                    </button>
+
+                    <AnimatePresence>
+                      {isHistoryOpen && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -4, scale: 0.97 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: -4, scale: 0.97 }}
+                          transition={{ duration: 0.12 }}
+                          className="absolute top-full left-0 mt-1 z-50 glass-panel overflow-hidden"
+                          style={{
+                            minWidth: '220px',
+                            maxHeight: '360px',
+                            boxShadow: '0 12px 40px rgba(0,0,0,0.2)',
+                          }}
+                        >
+                          <div className="py-1.5 px-3 border-b flex items-center gap-2"
+                               style={{ borderColor: 'var(--border-glass)' }}>
+                            <History size={12} style={{ color: 'var(--text-dim)' }} />
+                            <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+                              历史消息 · {messages.filter(m => m.role === 'user').length} 条
+                            </span>
+                          </div>
+                          <div className="overflow-y-auto" style={{ maxHeight: '320px' }}>
+                            {(() => {
+                              const userMsgs = messages.filter(m => m.role === 'user')
+                              return userMsgs.length === 0 ? (
+                                <div className="px-3 py-6 text-center">
+                                  <p className="text-xs" style={{ color: 'var(--text-dim)' }}>暂无用户消息</p>
+                                </div>
+                              ) : (
+                                userMsgs.map((msg) => (
+                                  <button
+                                    key={msg.id}
+                                    onClick={() => handleScrollToMessage(msg.id)}
+                                    className="w-full text-left px-3 py-2.5 transition-all duration-150 border-b last:border-b-0"
+                                    style={{
+                                      borderColor: 'var(--border-glass)',
+                                      color: 'var(--text-secondary)',
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      e.currentTarget.style.background = 'rgba(59,130,246,0.08)'
+                                      e.currentTarget.style.color = 'var(--text-primary)'
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      e.currentTarget.style.background = 'transparent'
+                                      e.currentTarget.style.color = 'var(--text-secondary)'
+                                    }}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <MessageCircle size={11} style={{ color: 'var(--text-dim)' }} />
+                                      <span className="text-xs truncate">
+                                        {msg.content.length > 10 ? msg.content.slice(0, 10) + '...' : msg.content}
+                                      </span>
+                                    </div>
+                                  </button>
+                                ))
+                              )
+                            })()}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+
+                  {/* Right: Export button */}
                   <button
                     onClick={handleExport}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all duration-200"
@@ -971,7 +1127,7 @@ export function ChatPage() {
               )}
 
               {/* Messages */}
-              <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
+              <div ref={messagesContainerRef} onScroll={handleMessagesScroll} className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
                 {messages.length === 0 && !streaming && !regeneratingMsgId && (
                   <motion.div
                     initial={{ opacity: 0 }}
@@ -991,6 +1147,7 @@ export function ChatPage() {
                   {messages.map((msg) => (
                     <motion.div
                       key={msg.id}
+                      id={`msg-${msg.id}`}
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.3 }}
@@ -1426,14 +1583,20 @@ export function ChatPage() {
                           initial={{ opacity: 0, x: 10 }}
                           animate={{ opacity: 1, x: 0 }}
                           transition={{ delay: i * 0.05 }}
-                          className="glass-card p-4 space-y-2"
+                          className="glass-card p-4 space-y-2 cursor-pointer group/source transition-all duration-200 hover:border-[var(--accent-blue)]/30"
+                          style={{ border: '1px solid var(--border-glass)' }}
+                          onClick={() => handleCitationClick(src)}
+                          title="点击查看文档原文对应位置"
                         >
                           <div className="flex items-center justify-between">
-                            <span className="text-xs font-medium truncate max-w-[70%]" style={{ color: 'var(--accent-blue)' }}>
+                            <span className="text-xs font-medium truncate max-w-[65%] group-hover/source:text-[var(--accent-blue)] transition-colors" style={{ color: 'var(--accent-blue)' }}>
                               {src.doc_name}
                             </span>
-                            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                              {(src.score * 100).toFixed(0)}%
+                            <span className="text-xs flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
+                              <span>{(src.score * 100).toFixed(0)}%</span>
+                              <span className="opacity-0 group-hover/source:opacity-100 transition-opacity text-[10px]" style={{ color: 'var(--accent-cyan)' }}>
+                                查看原文 →
+                              </span>
                             </span>
                           </div>
                           <div className="w-full h-1 rounded-full overflow-hidden" style={{ background: 'var(--bg-input)' }}>
@@ -1455,6 +1618,127 @@ export function ChatPage() {
           )}
         </PanelGroup>
       )}
+
+      {/* ── Document Viewer Modal (Citation Navigation) ── */}
+      <AnimatePresence>
+        {previewDoc && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-6"
+            style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)' }}
+            onClick={() => { setPreviewDoc(null); setHighlightChunkIndex(null) }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ duration: 0.2 }}
+              className="w-full max-w-3xl max-h-[85vh] rounded-2xl flex flex-col overflow-hidden"
+              style={{
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border-glass)',
+                boxShadow: '0 24px 80px rgba(0,0,0,0.4)',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b shrink-0"
+                   style={{ borderColor: 'var(--border-glass)' }}>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center"
+                       style={{ background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.2)' }}>
+                    <FileText size={20} className="text-[var(--accent-blue)]" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
+                      {previewDoc.filename}
+                    </h3>
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                      {previewDoc.file_type.toUpperCase()} · {previewDoc.chunk_count} 个分段
+                      {highlightChunkIndex !== null && (
+                        <span className="ml-2 px-1.5 py-0.5 rounded text-[var(--accent-blue)]"
+                              style={{ background: 'rgba(59,130,246,0.1)' }}>
+                          跳转到第 {highlightChunkIndex + 1} 段
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => { setPreviewDoc(null); setHighlightChunkIndex(null) }}
+                  className="p-2 rounded-lg transition-colors"
+                  style={{ color: 'var(--text-muted)' }}
+                  onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'}
+                  onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="flex-1 overflow-y-auto px-6 py-4">
+                {previewLoading ? (
+                  <div className="flex items-center justify-center py-20">
+                    <Loader2 size={24} className="animate-spin" style={{ color: 'var(--text-dim)' }} />
+                  </div>
+                ) : previewDoc.chunks.length > 0 ? (
+                  <div className="space-y-4">
+                    {previewDoc.chunks.map((chunk: DocumentChunk) => {
+                      const isHighlighted = highlightChunkIndex === chunk.index
+                      return (
+                        <div
+                          key={chunk.index}
+                          id={`doc-chunk-${chunk.index}`}
+                          className="rounded-xl p-4 transition-all duration-500"
+                          style={{
+                            background: isHighlighted ? 'rgba(59,130,246,0.1)' : 'var(--bg-input)',
+                            border: isHighlighted
+                              ? '2px solid var(--accent-blue)'
+                              : '1px solid var(--border-glass)',
+                            boxShadow: isHighlighted ? '0 0 24px rgba(59,130,246,0.15)' : 'none',
+                          }}
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <span
+                              className="text-xs px-2 py-0.5 rounded-md font-medium"
+                              style={{
+                                background: isHighlighted ? 'var(--accent-blue)' : 'var(--bg-card)',
+                                color: isHighlighted ? '#fff' : 'var(--text-muted)',
+                              }}
+                            >
+                              第 {chunk.index + 1} 段
+                            </span>
+                            <span className="text-xs" style={{ color: 'var(--text-dim)' }}>
+                              {chunk.char_count} 字符
+                            </span>
+                            {isHighlighted && (
+                              <span className="text-xs px-1.5 py-0.5 rounded"
+                                    style={{ color: 'var(--accent-blue)', background: 'rgba(59,130,246,0.15)' }}>
+                                检索命中
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm leading-relaxed whitespace-pre-wrap"
+                             style={{ color: isHighlighted ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                            {chunk.text}
+                          </p>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <FileText size={32} className="mx-auto mb-3" style={{ color: 'var(--text-dim)' }} />
+                    <p className="text-sm" style={{ color: 'var(--text-muted)' }}>无法加载文档内容</p>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

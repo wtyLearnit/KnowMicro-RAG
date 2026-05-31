@@ -10,7 +10,7 @@ sqlalchemy==2.0.36
 aiosqlite==0.20.0
 
 # Vector Store
-chromadb==0.5.23
+chromadb==1.5.9
 
 # HTTP Client (LLM/Embedding API calls)
 httpx==0.28.1
@@ -22,6 +22,9 @@ markdown==3.7
 
 # Text Processing
 tiktoken==0.8.0
+rank-bm25==0.2.2
+jieba==0.42.1
+sentence-transformers==3.3.1
 
 # Streaming
 sse-starlette==2.2.1

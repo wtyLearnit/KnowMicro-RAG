@@ -147,11 +147,27 @@ async def _migrate_conversations(conn):
             break
 
 
+async def _table_exists(conn, table_name: str) -> bool:
+    """Check if a table exists in the database."""
+    from sqlalchemy import text
+    result = await conn.execute(
+        text("SELECT name FROM sqlite_master WHERE type='table' AND name=:name"),
+        {"name": table_name},
+    )
+    return result.fetchone() is not None
+
+
 async def _migrate_archive_fields(conn):
     """Migrate: add is_archived, archived_at, is_orphaned columns if they don't exist."""
     from sqlalchemy import text
     import logging
     logger = logging.getLogger("Socratess_window")
+
+    # Only run migrations on tables that already exist (skip for fresh databases,
+    # since create_all will create them with the correct schema)
+
+    if not await _table_exists(conn, "collections"):
+        return
 
     # Check and add columns for collections
     result = await conn.execute(text("PRAGMA table_info(collections)"))

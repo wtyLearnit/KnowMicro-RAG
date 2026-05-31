@@ -105,6 +105,7 @@ class SourceItem(BaseModel):
     doc_name: str
     chunk_text: str
     score: float
+    chunk_index: int = 0
 
 
 class ChatResponse(BaseModel):
@@ -173,6 +174,9 @@ class ConfigResponse(BaseModel):
     embed_dimensions: int
     chunk_size: int
     chunk_overlap: int
+    hybrid_search_enabled: bool = True
+    reranker_enabled: bool = True
+    query_rewrite_enabled: bool = True
 
 
 # ── Archive / Trash ──────────────────────────────────

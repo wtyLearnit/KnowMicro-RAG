@@ -1,4 +1,4 @@
-﻿"""
+"""
 苏格拉底之窗 - Admin & System Routes
 """
 from fastapi import APIRouter, Depends
@@ -48,6 +48,9 @@ async def get_config():
         embed_dimensions=settings.embed_dimensions,
         chunk_size=settings.chunk_size,
         chunk_overlap=settings.chunk_overlap,
+        hybrid_search_enabled=settings.hybrid_search_enabled,
+        reranker_enabled=settings.reranker_enabled,
+        query_rewrite_enabled=settings.query_rewrite_enabled,
     )
 
 
