@@ -227,6 +227,20 @@ class RAGService:
 
         return "\n\n".join(parts)
 
+    # ── Helpers ─────────────────────────────────────
+    def _build_source_items(self, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Build standardized source dicts from retrieval results."""
+        return [
+            {
+                "doc_id": r["doc_id"],
+                "doc_name": r["doc_name"],
+                "chunk_text": r["chunk_text"][:300],
+                "score": r["score"],
+                "chunk_index": r.get("chunk_index", 0),
+            }
+            for r in results
+        ]
+
     # ── Full RAG Pipeline ───────────────────────────
     async def query(
         self,
@@ -249,16 +263,7 @@ class RAGService:
 
         return {
             "content": response["content"],
-            "sources": [
-                {
-                    "doc_id": r["doc_id"],
-                    "doc_name": r["doc_name"],
-                    "chunk_text": r["chunk_text"][:300],
-                    "score": r["score"],
-                    "chunk_index": r.get("chunk_index", 0),
-                }
-                for r in retrieved
-            ],
+            "sources": self._build_source_items(retrieved),
             "usage": response.get("usage", {}),
         }
 
@@ -284,16 +289,7 @@ class RAGService:
 
         yield {
             "type": "sources",
-            "sources": [
-                {
-                    "doc_id": r["doc_id"],
-                    "doc_name": r["doc_name"],
-                    "chunk_text": r["chunk_text"][:300],
-                    "score": r["score"],
-                    "chunk_index": r.get("chunk_index", 0),
-                }
-                for r in retrieved
-            ],
+            "sources": self._build_source_items(retrieved),
         }
 
     # ── Collection Stats ────────────────────────────

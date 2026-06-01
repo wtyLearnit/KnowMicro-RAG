@@ -332,3 +332,11 @@
 [data-separator]:hover {
   background: rgba(59, 130, 246, 0.05);
 }
+
+/* ── Hover utility classes (replace inline onMouseEnter/onMouseLeave style mutations) ── */
+.hover-text-primary:hover { color: var(--text-primary) !important; }
+.hover-text-accent:hover { color: var(--accent-blue) !important; }
+.hover-text-danger:hover { color: rgb(239, 68, 68) !important; }
+.hover-bg-card:hover { background: var(--bg-card-hover) !important; }
+.hover-bg-accent:hover { background: rgba(59,130,246,0.08) !important; }
+.hover-border-accent:hover { border-color: var(--accent-blue) !important; }

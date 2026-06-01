@@ -1,5 +1,6 @@
 /* 苏格拉底之窗 - Trash Page (回收站) */
 import { useEffect, useState } from 'react'
+import { formatSize, formatDate } from '../utils/format'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Trash2, RotateCcw, Database, FileText, MessageSquare,
@@ -33,19 +34,6 @@ export function TrashPage() {
   }
 
   useEffect(() => { loadTrash() }, [])
-
-  const formatSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-  }
-
-  const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return ''
-    return new Date(dateStr).toLocaleString('zh-CN', {
-      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-    })
-  }
 
   const handlePermanentDelete = async () => {
     if (!confirmDelete) return

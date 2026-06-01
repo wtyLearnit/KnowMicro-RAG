@@ -4,6 +4,9 @@
 from pathlib import Path
 from pydantic_settings import BaseSettings
 
+# Project root (backend/ directory) — deterministic regardless of CWD
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
 
 class Settings(BaseSettings):
     # ── LLM ──────────────────────────────────────────
@@ -22,8 +25,8 @@ class Settings(BaseSettings):
     embed_max_retries: int = 3
 
     # ── Database ─────────────────────────────────────
-    database_url: str = "sqlite+aiosqlite:///./data/Socratess_window.db"
-    chroma_persist_dir: str = "./data/chroma"
+    database_url: str = f"sqlite+aiosqlite:///{_PROJECT_ROOT / 'data' / 'platos_window.db'}"
+    chroma_persist_dir: str = str(_PROJECT_ROOT / "data" / "chroma")
 
     # ── Server ───────────────────────────────────────
     host: str = "0.0.0.0"

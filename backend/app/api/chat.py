@@ -1,14 +1,15 @@
 """
 苏格拉底之窗 - Chat & Search API Routes
 """
-from typing import List
+from typing import List, Optional, AsyncIterator, Dict, Any
 import json
+import logging
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, delete as sql_delete
-from app.database import get_db, Collection, Conversation, Message
+from app.database import get_db, async_session as db_session_factory, Collection, Conversation, Message
 from app.schemas.schemas import (
     ChatRequest, ChatResponse, SearchRequest, SearchResponse,
     SearchResultItem, ConversationOut, MessageOut,
@@ -18,7 +19,126 @@ from app.services.rag_service import rag_service
 from app.services.llm_service import llm_service
 from app.services.exceptions import ExternalServiceError
 
+logger = logging.getLogger("Socratess_window")
 router = APIRouter(tags=["chat"])
+
+# ── Shared Helpers ───────────────────────────────────
+
+
+async def _prepare_chat_context(
+    collection_id: Optional[str],
+    conversation_id: Optional[str],
+    user_message: str,
+    db: AsyncSession,
+):
+    """
+    Common pre-processing for chat and chat_stream:
+    - Verify collection (if KB mode)
+    - Get or create conversation
+    - Fetch history (last 20 msgs)
+    - Save user message
+
+    Returns: (conversation, history, is_free)
+    """
+    is_free = not collection_id
+
+    if not is_free:
+        collection = await db.get(Collection, collection_id)
+        if not collection:
+            raise HTTPException(404, "知识库不存在")
+
+    if conversation_id:
+        conversation = await db.get(Conversation, conversation_id)
+        if not conversation:
+            raise HTTPException(404, "对话不存在")
+        if conversation.is_orphaned:
+            raise HTTPException(400, "此对话关联的知识库已被删除，仅可查看历史记录，无法发送新消息")
+    else:
+        conversation = Conversation(
+            collection_id=collection_id,
+            title=user_message[:50] + ("..." if len(user_message) > 50 else ""),
+            model_used="llm" if is_free else "rag",
+        )
+        db.add(conversation)
+        await db.commit()
+        await db.refresh(conversation)
+
+    hist_result = await db.execute(
+        select(Message)
+        .where(Message.conversation_id == conversation.id)
+        .order_by(Message.created_at.desc())
+        .limit(20)
+    )
+    messages = list(reversed(hist_result.scalars().all()))
+    history = [{"role": m.role, "content": m.content} for m in messages]
+
+    user_msg = Message(
+        conversation_id=conversation.id,
+        role="user",
+        content=user_message,
+    )
+    db.add(user_msg)
+    await db.commit()
+
+    return conversation, history, is_free
+
+
+async def _free_chat_generator(
+    user_message: str,
+    history: List[Dict[str, str]],
+    mode: str,
+) -> AsyncIterator[Dict[str, Any]]:
+    """Adapt llm_service.chat_stream output to unified {type, content/sources} event dicts."""
+    async for chunk in llm_service.chat_stream(
+        user_message=user_message, history=history, context="", mode=mode,
+    ):
+        yield {"type": "chunk", "content": chunk}
+    yield {"type": "sources", "sources": []}
+
+
+async def _sse_wrap(
+    generator: AsyncIterator[Dict[str, Any]],
+    conversation_id: str,
+) -> AsyncIterator[str]:
+    """
+    Wrap a RAG/LLM event generator with:
+    - SSE formatting
+    - Error handling (ExternalServiceError → error SSE, generic → error SSE)
+    - Assistant message persistence (new session)
+    - Final 'done' event
+    """
+    full_content = ""
+    sources: List[Dict[str, Any]] = []
+    errored = False
+
+    try:
+        async for event in generator:
+            if event["type"] == "chunk":
+                full_content += event["content"]
+                yield f"data: {json.dumps({'type': 'chunk', 'content': event['content']}, ensure_ascii=False)}\n\n"
+            elif event["type"] == "sources":
+                sources = event["sources"]
+                yield f"data: {json.dumps({'type': 'sources', 'sources': sources}, ensure_ascii=False)}\n\n"
+    except ExternalServiceError as e:
+        errored = True
+        yield f"data: {json.dumps({'type': 'error', 'message': e.message}, ensure_ascii=False)}\n\n"
+    except Exception:
+        errored = True
+        logger.exception("Unexpected error during streaming generation")
+        yield f"data: {json.dumps({'type': 'error', 'message': '生成回复时发生未知错误'}, ensure_ascii=False)}\n\n"
+
+    if full_content and not errored:
+        async with db_session_factory() as save_db:
+            assistant_msg = Message(
+                conversation_id=conversation_id,
+                role="assistant",
+                content=full_content,
+                sources=sources,
+            )
+            save_db.add(assistant_msg)
+            await save_db.commit()
+
+    yield f"data: {json.dumps({'type': 'done', 'conversation_id': conversation_id}, ensure_ascii=False)}\n\n"
 
 # ── Semantic Search ─────────────────────────────────
 search_router = APIRouter(prefix="/api/search", tags=["search"])
@@ -77,60 +197,18 @@ async def chat(
     db: AsyncSession = Depends(get_db),
 ):
     """RAG-powered chat or free chat (no knowledge base)."""
-    is_free = not req.collection_id
-
-    # Verify collection (only for KB chat)
-    if not is_free:
-        collection = await db.get(Collection, req.collection_id)
-        if not collection:
-            raise HTTPException(404, "知识库不存在")
-
-    # Get or create conversation
-    if req.conversation_id:
-        conversation = await db.get(Conversation, req.conversation_id)
-        if not conversation:
-            raise HTTPException(404, "对话不存在")
-        if conversation.is_orphaned:
-            raise HTTPException(400, "此对话关联的知识库已被删除，仅可查看历史记录，无法发送新消息")
-    else:
-        conversation = Conversation(
-            collection_id=req.collection_id,
-            title=req.message[:50] + ("..." if len(req.message) > 50 else ""),
-            model_used="llm" if is_free else "rag",
-        )
-        db.add(conversation)
-        await db.commit()
-        await db.refresh(conversation)
-
-    # Get conversation history (most recent 20 messages, in chronological order)
-    hist_result = await db.execute(
-        select(Message)
-        .where(Message.conversation_id == conversation.id)
-        .order_by(Message.created_at.desc())
-        .limit(20)
+    conversation, history, is_free = await _prepare_chat_context(
+        collection_id=req.collection_id,
+        conversation_id=req.conversation_id,
+        user_message=req.message,
+        db=db,
     )
-    messages = list(reversed(hist_result.scalars().all()))
-    history = [
-        {"role": m.role, "content": m.content}
-        for m in messages
-    ]
-
-    # Save user message
-    user_msg = Message(
-        conversation_id=conversation.id,
-        role="user",
-        content=req.message,
-    )
-    db.add(user_msg)
-    await db.commit()
 
     # Run pipeline
     if is_free:
-        # Free chat: pure LLM, no RAG
         response = await llm_service.chat(req.message, history, context="", mode=req.mode)
         sources = []
     else:
-        # RAG chat
         response = await rag_service.query(
             collection_id=req.collection_id,
             user_message=req.message,
@@ -166,49 +244,12 @@ async def chat_stream(
     db: AsyncSession = Depends(get_db),
 ):
     """Streaming chat via Server-Sent Events (RAG or free chat)."""
-    is_free = not req.collection_id
-
-    # Verify collection (only for KB chat)
-    if not is_free:
-        collection = await db.get(Collection, req.collection_id)
-        if not collection:
-            raise HTTPException(404, "知识库不存在")
-
-    # Get or create conversation
-    if req.conversation_id:
-        conversation = await db.get(Conversation, req.conversation_id)
-        if not conversation:
-            raise HTTPException(404, "对话不存在")
-        if conversation.is_orphaned:
-            raise HTTPException(400, "此对话关联的知识库已被删除，仅可查看历史记录，无法发送新消息")
-    else:
-        conversation = Conversation(
-            collection_id=req.collection_id,
-            title=req.message[:50] + ("..." if len(req.message) > 50 else ""),
-            model_used="llm" if is_free else "rag",
-        )
-        db.add(conversation)
-        await db.commit()
-        await db.refresh(conversation)
-
-    # Get history (most recent 20 messages, in chronological order)
-    hist_result = await db.execute(
-        select(Message)
-        .where(Message.conversation_id == conversation.id)
-        .order_by(Message.created_at.desc())
-        .limit(20)
+    conversation, history, is_free = await _prepare_chat_context(
+        collection_id=req.collection_id,
+        conversation_id=req.conversation_id,
+        user_message=req.message,
+        db=db,
     )
-    messages = list(reversed(hist_result.scalars().all()))
-    history = [{"role": m.role, "content": m.content} for m in messages]
-
-    # Save user message
-    user_msg = Message(
-        conversation_id=conversation.id,
-        role="user",
-        content=req.message,
-    )
-    db.add(user_msg)
-    await db.commit()
 
     conversation_id = conversation.id
     collection_id = req.collection_id
@@ -216,63 +257,22 @@ async def chat_stream(
     mode = req.mode
     user_message = req.message
 
-    async def event_stream():
-        full_content = ""
-        sources = []
-        errored = False
-
-        try:
-            if is_free:
-                # Free chat: pure LLM, no RAG retrieval
-                async for chunk in llm_service.chat_stream(
-                    user_message=user_message,
-                    history=history,
-                    context="",
-                    mode=mode,
-                ):
-                    full_content += chunk
-                    yield f"data: {json.dumps({'type': 'chunk', 'content': chunk}, ensure_ascii=False)}\n\n"
-                # Send empty sources for consistency
-                yield f"data: {json.dumps({'type': 'sources', 'sources': []}, ensure_ascii=False)}\n\n"
-            else:
-                # RAG chat
-                async for event in rag_service.query_stream(
-                    collection_id=collection_id,
-                    user_message=user_message,
-                    history=history,
-                    top_k=top_k,
-                    mode=mode,
-                ):
-                    if event["type"] == "chunk":
-                        full_content += event["content"]
-                        yield f"data: {json.dumps({'type': 'chunk', 'content': event['content']}, ensure_ascii=False)}\n\n"
-                    elif event["type"] == "sources":
-                        sources = event["sources"]
-                        yield f"data: {json.dumps({'type': 'sources', 'sources': sources}, ensure_ascii=False)}\n\n"
-        except ExternalServiceError as e:
-            errored = True
-            yield f"data: {json.dumps({'type': 'error', 'message': e.message}, ensure_ascii=False)}\n\n"
-        except Exception:
-            errored = True
-            yield f"data: {json.dumps({'type': 'error', 'message': '生成回复时发生未知错误'}, ensure_ascii=False)}\n\n"
-
-        # Persist the assistant message only if we produced content (use a new session)
-        if full_content and not errored:
-            from app.database import async_session as db_session
-            async with db_session() as save_db:
-                assistant_msg = Message(
-                    conversation_id=conversation_id,
-                    role="assistant",
-                    content=full_content,
-                    sources=sources,
-                )
-                save_db.add(assistant_msg)
-                await save_db.commit()
-
-        yield f"data: {json.dumps({'type': 'done', 'conversation_id': conversation_id}, ensure_ascii=False)}\n\n"
+    async def build_generator():
+        if is_free:
+            async for event in _free_chat_generator(user_message, history, mode):
+                yield event
+        else:
+            async for event in rag_service.query_stream(
+                collection_id=collection_id,
+                user_message=user_message,
+                history=history,
+                top_k=top_k,
+                mode=mode,
+            ):
+                yield event
 
     return StreamingResponse(
-        event_stream(),
+        _sse_wrap(build_generator(), conversation_id),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -550,60 +550,22 @@ async def regenerate_response_stream(
 
     user_message_text = user_msg.content
 
-    async def event_stream():
-        full_content = ""
-        sources = []
-        errored = False
-
-        try:
-            if is_free:
-                # Free chat: pure LLM, no RAG
-                async for chunk in llm_service.chat_stream(
-                    user_message=user_message_text,
-                    history=history,
-                    context="",
-                    mode=req.mode,
-                ):
-                    full_content += chunk
-                    yield f"data: {json.dumps({'type': 'chunk', 'content': chunk}, ensure_ascii=False)}\n\n"
-                yield f"data: {json.dumps({'type': 'sources', 'sources': []}, ensure_ascii=False)}\n\n"
-            else:
-                async for event in rag_service.query_stream(
-                    collection_id=collection_id,
-                    user_message=user_message_text,
-                    history=history,
-                    top_k=req.top_k,
-                    mode=req.mode,
-                ):
-                    if event["type"] == "chunk":
-                        full_content += event["content"]
-                        yield f"data: {json.dumps({'type': 'chunk', 'content': event['content']}, ensure_ascii=False)}\n\n"
-                    elif event["type"] == "sources":
-                        sources = event["sources"]
-                        yield f"data: {json.dumps({'type': 'sources', 'sources': sources}, ensure_ascii=False)}\n\n"
-        except ExternalServiceError as e:
-            errored = True
-            yield f"data: {json.dumps({'type': 'error', 'message': e.message}, ensure_ascii=False)}\n\n"
-        except Exception:
-            errored = True
-            yield f"data: {json.dumps({'type': 'error', 'message': '生成回复时发生未知错误'}, ensure_ascii=False)}\n\n"
-
-        if full_content and not errored:
-            from app.database import async_session as db_session
-            async with db_session() as save_db:
-                assistant_msg = Message(
-                    conversation_id=conversation_id,
-                    role="assistant",
-                    content=full_content,
-                    sources=sources,
-                )
-                save_db.add(assistant_msg)
-                await save_db.commit()
-
-        yield f"data: {json.dumps({'type': 'done', 'conversation_id': conversation_id}, ensure_ascii=False)}\n\n"
+    async def build_generator():
+        if is_free:
+            async for event in _free_chat_generator(user_message_text, history, req.mode):
+                yield event
+        else:
+            async for event in rag_service.query_stream(
+                collection_id=collection_id,
+                user_message=user_message_text,
+                history=history,
+                top_k=req.top_k,
+                mode=req.mode,
+            ):
+                yield event
 
     return StreamingResponse(
-        event_stream(),
+        _sse_wrap(build_generator(), conversation_id),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

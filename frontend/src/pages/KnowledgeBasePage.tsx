@@ -1,5 +1,6 @@
 /* 苏格拉底之窗 - Knowledge Base Management Page */
 import { useEffect, useState, useRef, useCallback } from 'react'
+import { formatSize } from '../utils/format'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Plus, Upload, Trash2, FileText, X, Loader2, RefreshCw,
@@ -10,80 +11,10 @@ import {
   listCollections, createCollection, updateCollection,
   archiveCollection,
   listDocuments, uploadDocumentWithProgress, archiveDocument,
-  getDocumentPreview,
 } from '../services/api'
-import type { Collection, Document, DocumentPreview } from '../types'
-
-/* ── Icon Picker ──────────────────────────────── */
-const ICON_OPTIONS = [
-  '📚', '📖', '📝', '📋', '📁', '📂', '📄', '📑',
-  '🧠', '💡', '🔬', '🔭', '🧪', '⚗️', '🧬', '🔢',
-  '💻', '🖥️', '⌨️', '🖱️', '💾', '📀', '🌐', '🔗',
-  '🎓', '🏫', '📐', '📏', '🎨', '🎭', '🎵', '🎶',
-  '🌍', '🌎', '🌏', '🗺️', '⚖️', '🏛️', '🔮', '💎',
-  '🐍', '🦀', '☕', '⚛️', '🧮', '📊', '📈', '🗂️',
-  '🩺', '💊', '🧿', '🪐', '✨', '🔥', '⚡', '🌟',
-]
-
-function IconPicker({ value, onChange }: { value: string; onChange: (icon: string) => void }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 px-3 py-2.5 rounded-lg transition-all duration-200"
-        style={{
-          background: 'var(--bg-input)',
-          border: `1px solid ${open ? 'var(--accent-blue)' : 'var(--border-glass)'}`,
-        }}
-      >
-        <span className="text-2xl">{value}</span>
-        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>选择图标</span>
-      </button>
-
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, y: -8, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.96 }}
-            transition={{ duration: 0.15 }}
-            className="absolute left-0 mt-1.5 z-50 glass-panel p-3 w-72"
-            style={{ boxShadow: '0 12px 40px rgba(0,0,0,0.15)' }}
-          >
-            <div className="grid grid-cols-8 gap-1">
-              {ICON_OPTIONS.map(icon => (
-                <button
-                  key={icon}
-                  type="button"
-                  onClick={() => { onChange(icon); setOpen(false) }}
-                  className="w-8 h-8 flex items-center justify-center rounded-md text-lg transition-all duration-150 hover:scale-110"
-                  style={{
-                    background: icon === value ? 'rgba(59,130,246,0.15)' : 'transparent',
-                    border: icon === value ? '1px solid var(--accent-blue)' : '1px solid transparent',
-                  }}
-                >
-                  {icon}
-                </button>
-              ))}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  )
-}
+import type { Collection, Document } from '../types'
+import { IconPicker } from '../components/knowledge/IconPicker'
+import { DocumentPreviewModal } from '../components/knowledge/DocumentPreviewModal'
 
 /* ── Upload File Progress Item ────────────────── */
 interface UploadItem {
@@ -94,178 +25,6 @@ interface UploadItem {
   error?: string
 }
 
-/* ── Document Preview Modal ───────────────────── */
-function DocumentPreviewModal({
-  docId,
-  onClose,
-}: {
-  docId: string
-  onClose: () => void
-}) {
-  const [preview, setPreview] = useState<DocumentPreview | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'content' | 'chunks'>('content')
-  const [currentChunk, setCurrentChunk] = useState(0)
-
-  useEffect(() => {
-    getDocumentPreview(docId)
-      .then(setPreview)
-      .catch((err) => setError(err?.response?.data?.detail || '加载失败'))
-      .finally(() => setLoading(false))
-  }, [docId])
-
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-      onClick={onClose}
-    >
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="glass-panel w-full max-w-4xl max-h-[85vh] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b" style={{ borderColor: 'var(--border-glass)' }}>
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-lg flex items-center justify-center"
-                 style={{ background: 'var(--bg-input)', border: '1px solid var(--border-glass)' }}>
-              <FileText size={18} style={{ color: 'var(--accent-blue)' }} />
-            </div>
-            <div className="min-w-0">
-              <h3 className="font-serif font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
-                {preview?.filename || '加载中...'}
-              </h3>
-              {preview && (
-                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  {(preview.file_size / 1024).toFixed(1)} KB · {preview.file_type.toUpperCase()} · {preview.chunk_count} 片段
-                </p>
-              )}
-            </div>
-          </div>
-          <button onClick={onClose} className="btn-ghost p-1">
-            <X size={20} />
-          </button>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex gap-1 px-5 pt-4">
-          {(['content', 'chunks'] as const).map(tab => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className="px-4 py-2 rounded-t-lg text-sm font-medium transition-all duration-200"
-              style={{
-                background: activeTab === tab ? 'var(--bg-card)' : 'transparent',
-                color: activeTab === tab ? 'var(--accent-blue)' : 'var(--text-muted)',
-                border: activeTab === tab ? '1px solid var(--border-glass)' : '1px solid transparent',
-                borderBottom: activeTab === tab ? '1px solid var(--bg-card)' : undefined,
-              }}
-            >
-              {tab === 'content' ? '📄 原文内容' : `🧩 分块结果 (${preview?.chunks.length || 0})`}
-            </button>
-          ))}
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-5 min-h-0">
-          {loading ? (
-            <div className="flex items-center justify-center py-20">
-              <Loader2 size={32} className="animate-spin" style={{ color: 'var(--accent-blue)' }} />
-            </div>
-          ) : error ? (
-            <div className="text-center py-20">
-              <p style={{ color: 'var(--text-muted)' }}>{error}</p>
-            </div>
-          ) : activeTab === 'content' ? (
-            <div
-              className="prose-content text-sm leading-relaxed whitespace-pre-wrap"
-              style={{ color: 'var(--text-secondary)' }}
-            >
-              {preview?.content || '(无内容)'}
-            </div>
-          ) : preview?.chunks && preview.chunks.length > 0 ? (
-            <div className="space-y-3">
-              {/* Chunk navigator */}
-              <div className="flex items-center justify-between">
-                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  片段 {currentChunk + 1} / {preview.chunks.length}
-                </span>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setCurrentChunk(Math.max(0, currentChunk - 1))}
-                    disabled={currentChunk === 0}
-                    className="btn-ghost p-1.5 disabled:opacity-30"
-                  >
-                    <ChevronLeft size={16} />
-                  </button>
-                  <button
-                    onClick={() => setCurrentChunk(Math.min(preview.chunks.length - 1, currentChunk + 1))}
-                    disabled={currentChunk === preview.chunks.length - 1}
-                    className="btn-ghost p-1.5 disabled:opacity-30"
-                  >
-                    <ChevronRight size={16} />
-                  </button>
-                </div>
-              </div>
-
-              {/* Current chunk */}
-              <motion.div
-                key={currentChunk}
-                initial={{ opacity: 0, x: 10 }}
-                animate={{ opacity: 1, x: 0 }}
-                className="glass-card"
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-medium px-2 py-0.5 rounded-full"
-                        style={{ background: 'rgba(59,130,246,0.1)', color: 'var(--accent-blue)' }}>
-                    片段 #{preview.chunks[currentChunk].index}
-                  </span>
-                  <span className="text-xs" style={{ color: 'var(--text-dim)' }}>
-                    {preview.chunks[currentChunk].char_count} 字符
-                  </span>
-                </div>
-                <p className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--text-secondary)' }}>
-                  {preview.chunks[currentChunk].text}
-                </p>
-              </motion.div>
-
-              {/* Chunk list (scrollable thumbnails) */}
-              <div className="max-h-48 overflow-y-auto space-y-1.5 mt-4">
-                {preview.chunks.map((chunk, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setCurrentChunk(i)}
-                    className="w-full text-left px-3 py-2 rounded-lg text-xs transition-all duration-150 truncate"
-                    style={{
-                      background: i === currentChunk ? 'rgba(59,130,246,0.1)' : 'var(--bg-input)',
-                      border: i === currentChunk ? '1px solid var(--accent-blue)' : '1px solid var(--border-glass)',
-                      color: i === currentChunk ? 'var(--accent-blue)' : 'var(--text-muted)',
-                    }}
-                  >
-                    <span className="font-medium">#{chunk.index}</span>
-                    {' — '}
-                    {chunk.text.slice(0, 60)}...
-                    <span className="ml-2" style={{ color: 'var(--text-dim)' }}>({chunk.char_count}字符)</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="text-center py-20">
-              <p style={{ color: 'var(--text-muted)' }}>暂无分块数据</p>
-            </div>
-          )}
-        </div>
-      </motion.div>
-    </motion.div>
-  )
-}
 
 /* ── Main Page ──────────────────────────────────── */
 export function KnowledgeBasePage() {
@@ -359,7 +118,17 @@ export function KnowledgeBasePage() {
       setShowModal(false)
       await loadCollections()
     } catch (err: any) {
-      alert(err?.response?.data?.detail || '保存失败')
+      const detail = err?.response?.data?.detail
+      if (detail) {
+        alert(detail)
+      } else if (err?.message) {
+        // Network error (e.g. "Network Error", "connect ECONNREFUSED")
+        console.error('API call failed:', err.message, err)
+        alert('保存失败：无法连接到后端服务，请确认后端已启动（http://localhost:8000）')
+      } else {
+        console.error('API call failed:', err)
+        alert('保存失败：未知错误，请查看浏览器控制台')
+      }
     }
   }
 
@@ -479,11 +248,6 @@ export function KnowledgeBasePage() {
     await loadCollections()
   }
 
-  const formatSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-  }
 
   return (
     <motion.div
