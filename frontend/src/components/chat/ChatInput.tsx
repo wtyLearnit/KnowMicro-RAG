@@ -2,7 +2,7 @@
  * ChatInput — bottom input area with mode toggle, Top-K selector, and send button.
  * Extracted from ChatPage.tsx.
  */
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, type PointerEvent as ReactPointerEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Send, SlidersHorizontal, ChevronDown, Check, Loader2, Bot } from 'lucide-react'
@@ -28,6 +28,15 @@ interface ChatInputProps {
   onModelChange: (configId: string | null) => void
 }
 
+const INPUT_PANEL_HEIGHT_KEY = 'chatInputPanelHeight'
+const INPUT_PANEL_MIN_HEIGHT = 192
+const INPUT_PANEL_MAX_HEIGHT = 440
+const INPUT_PANEL_DEFAULT_HEIGHT = 214
+
+const clampInputPanelHeight = (height: number) => {
+  return Math.min(INPUT_PANEL_MAX_HEIGHT, Math.max(INPUT_PANEL_MIN_HEIGHT, height))
+}
+
 export function ChatInput({
   isOrphanedConv,
   mode,
@@ -48,6 +57,12 @@ export function ChatInput({
   const navigate = useNavigate()
   const [showTopKPanel, setShowTopKPanel] = useState(false)
   const [showModelPanel, setShowModelPanel] = useState(false)
+  const [panelHeight, setPanelHeight] = useState(() => {
+    const saved = Number(localStorage.getItem(INPUT_PANEL_HEIGHT_KEY))
+    return Number.isFinite(saved)
+      ? clampInputPanelHeight(saved)
+      : INPUT_PANEL_DEFAULT_HEIGHT
+  })
   const topKRef = useRef<HTMLDivElement | null>(null)
   const modelRef = useRef<HTMLDivElement | null>(null)
 
@@ -65,18 +80,67 @@ export function ChatInput({
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
+  useEffect(() => {
+    localStorage.setItem(INPUT_PANEL_HEIGHT_KEY, String(panelHeight))
+  }, [panelHeight])
+
+  const handleResizeStart = (event: ReactPointerEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    const startY = event.clientY
+    const startHeight = panelHeight
+    const originalCursor = document.body.style.cursor
+    const originalUserSelect = document.body.style.userSelect
+
+    document.body.style.cursor = 'ns-resize'
+    document.body.style.userSelect = 'none'
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      const nextHeight = startHeight + startY - moveEvent.clientY
+      setPanelHeight(clampInputPanelHeight(nextHeight))
+    }
+
+    const handlePointerUp = () => {
+      document.body.style.cursor = originalCursor
+      document.body.style.userSelect = originalUserSelect
+      window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('pointerup', handlePointerUp)
+    }
+
+    window.addEventListener('pointermove', handlePointerMove)
+    window.addEventListener('pointerup', handlePointerUp)
+  }
+
   const isDisabled = streaming || !!regeneratingMsgId || isOrphanedConv
 
   return (
     <div
-      className="border-t p-4"
-      style={{ borderColor: 'var(--border-glass)', background: 'var(--bg-sidebar)' }}
+      className="relative flex flex-col border-t px-4 py-4 lg:px-6"
+      style={{
+        height: panelHeight,
+        borderColor: 'var(--border-glass)',
+        background: 'var(--bg-sidebar)',
+        boxShadow: '0 -10px 30px rgba(0,0,0,0.08)',
+      }}
     >
+      <div
+        role="separator"
+        aria-orientation="horizontal"
+        aria-label="调整输入区域高度"
+        title="拖动调整输入区域高度"
+        onPointerDown={handleResizeStart}
+        className="absolute left-0 right-0 top-0 z-10 flex h-3 -translate-y-1/2 cursor-ns-resize items-center justify-center"
+      >
+        <div
+          className="h-1 w-14 rounded-full transition-all duration-150 hover:w-20"
+          style={{ background: 'var(--separator-bg)' }}
+        />
+      </div>
+
       {/* Mode toggle + Top-K selector */}
       {!isOrphanedConv && (
-        <div className="flex items-center gap-2 mb-3 flex-wrap">
+        <div className="mb-3 flex shrink-0 items-center gap-3">
           <div
-            className="flex rounded-lg p-0.5"
+            className="flex shrink-0 rounded-lg p-1"
             style={{ background: 'var(--bg-input)', border: '1px solid var(--border-glass)' }}
           >
             <button
@@ -84,7 +148,7 @@ export function ChatInput({
                 onModeChange('socratic')
                 localStorage.setItem('chatMode', 'socratic')
               }}
-              className="px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-200"
+              className="min-h-8 px-3.5 py-1.5 rounded-md text-xs font-medium transition-all duration-200"
               style={{
                 background: mode === 'socratic' ? 'var(--accent-blue)' : 'transparent',
                 color: mode === 'socratic' ? '#fff' : 'var(--text-secondary)',
@@ -98,7 +162,7 @@ export function ChatInput({
                 onModeChange('direct')
                 localStorage.setItem('chatMode', 'direct')
               }}
-              className="px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-200"
+              className="min-h-8 px-3.5 py-1.5 rounded-md text-xs font-medium transition-all duration-200"
               style={{
                 background: mode === 'direct' ? 'var(--accent-blue)' : 'transparent',
                 color: mode === 'direct' ? '#fff' : 'var(--text-secondary)',
@@ -108,16 +172,16 @@ export function ChatInput({
               直接问答
             </button>
           </div>
-          <span className="text-xs" style={{ color: 'var(--text-dim)' }}>
+          <span className="hidden min-w-0 flex-1 truncate text-xs sm:block" style={{ color: 'var(--text-dim)' }}>
             {mode === 'socratic' ? '引导式提问，启发思考' : '直接给出答案'}
           </span>
 
           {/* Top-K selector (hidden in free chat mode) */}
           {!isFreeChat && (
-            <div className="relative ml-auto" ref={topKRef}>
+            <div className="relative ml-auto shrink-0" ref={topKRef}>
               <button
                 onClick={() => setShowTopKPanel(!showTopKPanel)}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs transition-all duration-200"
+                className="flex min-h-9 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs transition-all duration-200"
                 style={{
                   background: 'var(--bg-input)',
                   border: '1px solid var(--border-glass)',
@@ -197,8 +261,15 @@ export function ChatInput({
       )}
 
       {/* Input row */}
-      <div className="flex items-end gap-3">
-        <div className="flex-1 relative">
+      <div
+        className="flex min-h-0 flex-1 flex-col gap-3 rounded-lg p-3 lg:flex-row lg:items-end"
+        style={{
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border-glass)',
+          boxShadow: 'var(--shadow-inset)',
+        }}
+      >
+        <div className="relative min-h-0 min-w-0 flex-1 lg:self-stretch">
           <textarea
             value={input}
             onChange={(e) => onInputChange(e.target.value)}
@@ -217,22 +288,26 @@ export function ChatInput({
                     ? `向「${activeCollection.name}」提问...`
                     : '输入消息...'
             }
-            rows={2}
-            className="w-full input-field resize-none text-sm"
+            rows={3}
+            className="block h-full min-h-[64px] w-full resize-none rounded-lg border px-4 py-3 text-[15px] leading-6 outline-none transition-all duration-200 focus:ring-2"
             disabled={isDisabled}
             style={{
+              background: 'var(--bg-input)',
+              borderColor: 'var(--border-glass)',
               color: isDisabled ? 'var(--text-dim)' : 'var(--text-primary)',
+              boxShadow: 'none',
             }}
           />
         </div>
 
+        <div className="flex shrink-0 items-center gap-2 lg:self-end">
         {/* Model selector */}
-        <div className="relative shrink-0" ref={modelRef}>
+        <div className="relative min-w-0 flex-1 lg:flex-none" ref={modelRef}>
           {(activeModels?.llm_configs?.length ?? 0) > 0 ? (
             <button
               onClick={() => setShowModelPanel(!showModelPanel)}
               disabled={isDisabled}
-              className="flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-xs transition-all duration-200"
+              className="flex h-11 w-full items-center justify-center gap-2 rounded-lg px-3 text-xs transition-all duration-200 lg:w-[168px]"
               style={{
                 background: 'var(--bg-input)',
                 border: '1px solid var(--border-glass)',
@@ -240,8 +315,8 @@ export function ChatInput({
                 cursor: isDisabled ? 'not-allowed' : 'pointer',
               }}
             >
-              <Bot size={14} />
-              <span className="max-w-[100px] truncate">
+              <Bot size={15} className="shrink-0" />
+              <span className="min-w-0 truncate">
                 {(() => {
                   const active = activeModels?.llm_configs?.find(c => c.id === (selectedModelId || activeModels?.llm?.id))
                   if (active) {
@@ -259,7 +334,7 @@ export function ChatInput({
           ) : (
             <button
               onClick={() => navigate('/settings')}
-              className="flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-xs transition-all duration-200"
+              className="flex h-11 w-full items-center justify-center gap-2 rounded-lg px-3 text-xs transition-all duration-200 lg:w-[168px]"
               style={{
                 background: 'var(--bg-input)',
                 border: '1px solid var(--border-glass)',
@@ -267,7 +342,7 @@ export function ChatInput({
               }}
               title="未配置模型，点击前往设置"
             >
-              <Bot size={14} />
+              <Bot size={15} />
               <span>未配置</span>
             </button>
           )}
@@ -340,29 +415,31 @@ export function ChatInput({
           </AnimatePresence>
         </div>
 
-        <button
-          onClick={onSend}
-          disabled={isDisabled || !input.trim()}
-          className="btn-primary shrink-0 flex items-center gap-2"
-          style={{
-            background: isDisabled
-              ? 'var(--bg-card)'
-              : 'linear-gradient(135deg, var(--accent-blue), var(--accent-cyan))',
-            color: isDisabled ? 'var(--text-dim)' : '#fff',
-            cursor: isDisabled || !input.trim() ? 'not-allowed' : 'pointer',
-            boxShadow:
-              !isDisabled && input.trim()
-                ? '0 2px 12px rgba(59,130,246,0.3)'
-                : 'none',
-          }}
-        >
-          {streaming || regeneratingMsgId ? (
-            <Loader2 size={16} className="animate-spin" />
-          ) : (
-            <Send size={16} />
-          )}
-          <span className="text-sm font-medium">发送</span>
-        </button>
+          <button
+            onClick={onSend}
+            disabled={isDisabled || !input.trim()}
+            className="flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg px-5 text-sm font-medium transition-all duration-200 lg:min-w-[96px]"
+            style={{
+              background: isDisabled || !input.trim()
+                ? 'var(--bg-input)'
+                : 'linear-gradient(135deg, var(--accent-blue), var(--accent-cyan))',
+              border: '1px solid var(--border-glass)',
+              color: isDisabled || !input.trim() ? 'var(--text-dim)' : '#fff',
+              cursor: isDisabled || !input.trim() ? 'not-allowed' : 'pointer',
+              boxShadow:
+                !isDisabled && input.trim()
+                  ? '0 8px 22px rgba(59,130,246,0.24)'
+                  : 'none',
+            }}
+          >
+            {streaming || regeneratingMsgId ? (
+              <Loader2 size={17} className="animate-spin" />
+            ) : (
+              <Send size={17} />
+            )}
+            <span>发送</span>
+          </button>
+        </div>
       </div>
     </div>
   )

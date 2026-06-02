@@ -70,15 +70,15 @@
 
 [data-theme="xuan"] {
   /* 宣纸主题 - 淡黄宣纸质感，仿宋字体 */
-  --bg-primary: #F4EBC8;
-  --bg-secondary: #EDE1BA;
-  --bg-card: rgba(237, 225, 186, 0.75);
-  --bg-card-hover: rgba(237, 225, 186, 0.95);
-  --bg-input: rgba(237, 225, 186, 0.85);
-  --bg-sidebar: rgba(230, 216, 170, 0.95);
+  --bg-primary: #F6EBCB;
+  --bg-secondary: #EAD9AA;
+  --bg-card: rgba(246, 235, 203, 0.78);
+  --bg-card-hover: rgba(250, 240, 211, 0.94);
+  --bg-input: rgba(255, 246, 220, 0.66);
+  --bg-sidebar: rgba(232, 216, 170, 0.92);
 
-  --border-glass: rgba(139, 105, 20, 0.18);
-  --border-hover: rgba(139, 105, 20, 0.4);
+  --border-glass: rgba(126, 86, 27, 0.22);
+  --border-hover: rgba(126, 86, 27, 0.42);
 
   --text-primary: #3C2415;
   --text-secondary: #5C3D2E;
@@ -90,15 +90,79 @@
   --accent-purple: #6B3A5C;
   --accent-gold: #A65E2E;
 
-  --shadow-card: 0 2px 16px rgba(80, 50, 10, 0.1);
-  --shadow-glow: 0 0 16px rgba(139, 105, 20, 0.08);
-  --shadow-inset: inset 0 1px 0 0 rgba(255, 248, 220, 0.6);
+  --shadow-card: 0 8px 24px rgba(80, 50, 10, 0.09);
+  --shadow-glow: 0 0 18px rgba(139, 105, 20, 0.09);
+  --shadow-inset: inset 0 1px 0 0 rgba(255, 250, 230, 0.72), inset 0 -1px 0 rgba(126, 86, 27, 0.07);
 
   --scrollbar-thumb: rgba(139, 105, 20, 0.25);
   --scrollbar-hover: rgba(139, 105, 20, 0.45);
 
   --separator-bg: rgba(139, 105, 20, 0.2);
   --separator-active: rgba(139, 105, 20, 0.5);
+}
+
+[data-theme="forest"] {
+  --bg-primary: #F1F7ED;
+  --bg-secondary: #E4EFE1;
+  --bg-card: rgba(255, 255, 255, 0.72);
+  --bg-card-hover: rgba(255, 255, 255, 0.92);
+  --bg-input: rgba(255, 255, 255, 0.86);
+  --bg-sidebar: rgba(230, 241, 232, 0.95);
+
+  --border-glass: rgba(22, 101, 52, 0.13);
+  --border-hover: rgba(20, 83, 45, 0.32);
+
+  --text-primary: #17321F;
+  --text-secondary: #365B42;
+  --text-muted: #6E8A72;
+  --text-dim: #A5B9A8;
+
+  --accent-blue: #166534;
+  --accent-cyan: #0F766E;
+  --accent-purple: #7C3AED;
+  --accent-gold: #B45309;
+
+  --shadow-card: 0 4px 22px rgba(21, 83, 45, 0.08);
+  --shadow-glow: 0 0 18px rgba(22, 101, 52, 0.1);
+  --shadow-inset: inset 0 1px 0 0 rgba(255, 255, 255, 0.75);
+
+  --scrollbar-thumb: rgba(22, 101, 52, 0.22);
+  --scrollbar-hover: rgba(22, 101, 52, 0.36);
+
+  --separator-bg: rgba(22, 101, 52, 0.16);
+  --separator-active: rgba(22, 101, 52, 0.45);
+}
+
+[data-theme="rose"] {
+  --bg-primary: #FFF7ED;
+  --bg-secondary: #FFE8D5;
+  --bg-card: rgba(255, 255, 255, 0.74);
+  --bg-card-hover: rgba(255, 255, 255, 0.94);
+  --bg-input: rgba(255, 255, 255, 0.88);
+  --bg-sidebar: rgba(255, 241, 242, 0.95);
+
+  --border-glass: rgba(190, 24, 93, 0.13);
+  --border-hover: rgba(190, 24, 93, 0.28);
+
+  --text-primary: #3F1D2B;
+  --text-secondary: #6B344A;
+  --text-muted: #9F6072;
+  --text-dim: #D6A4AF;
+
+  --accent-blue: #BE185D;
+  --accent-cyan: #C2410C;
+  --accent-purple: #7E22CE;
+  --accent-gold: #CA8A04;
+
+  --shadow-card: 0 4px 22px rgba(190, 24, 93, 0.08);
+  --shadow-glow: 0 0 18px rgba(190, 24, 93, 0.1);
+  --shadow-inset: inset 0 1px 0 0 rgba(255, 255, 255, 0.78);
+
+  --scrollbar-thumb: rgba(190, 24, 93, 0.2);
+  --scrollbar-hover: rgba(190, 24, 93, 0.34);
+
+  --separator-bg: rgba(190, 24, 93, 0.15);
+  --separator-active: rgba(190, 24, 93, 0.42);
 }
 
 @layer base {
@@ -149,8 +213,35 @@
   [data-theme="xuan"] body {
     font-family: "FangSong", "STFangsong", "仿宋", "FangSong_GB2312", serif;
     background-image:
-      radial-gradient(ellipse at 30% 40%, rgba(180,140,50,0.06) 0%, transparent 55%),
-      radial-gradient(ellipse at 75% 70%, rgba(139,105,20,0.05) 0%, transparent 50%);
+      radial-gradient(circle at 18% 22%, rgba(255,250,224,0.55) 0 1px, transparent 1.5px),
+      radial-gradient(circle at 72% 38%, rgba(117,82,24,0.08) 0 1px, transparent 1.7px),
+      radial-gradient(circle at 42% 76%, rgba(117,82,24,0.06) 0 1px, transparent 1.6px),
+      linear-gradient(105deg, rgba(255,255,255,0.18) 0 9%, transparent 9% 17%, rgba(122,86,31,0.035) 17% 18%, transparent 18% 100%),
+      repeating-linear-gradient(92deg, rgba(91,62,21,0.035) 0 1px, transparent 1px 9px),
+      repeating-linear-gradient(2deg, rgba(255,255,255,0.13) 0 1px, transparent 1px 13px),
+      radial-gradient(ellipse at 30% 40%, rgba(180,140,50,0.12) 0%, transparent 58%),
+      radial-gradient(ellipse at 75% 70%, rgba(139,105,20,0.09) 0%, transparent 54%);
+    background-size:
+      26px 26px,
+      34px 34px,
+      41px 41px,
+      100% 100%,
+      14px 100%,
+      100% 18px,
+      100% 100%,
+      100% 100%;
+  }
+
+  [data-theme="forest"] body {
+    background-image:
+      radial-gradient(ellipse at 18% 30%, rgba(22,101,52,0.06) 0%, transparent 52%),
+      radial-gradient(ellipse at 82% 72%, rgba(15,118,110,0.05) 0%, transparent 54%);
+  }
+
+  [data-theme="rose"] body {
+    background-image:
+      radial-gradient(ellipse at 18% 36%, rgba(190,24,93,0.05) 0%, transparent 52%),
+      radial-gradient(ellipse at 82% 72%, rgba(194,65,12,0.05) 0%, transparent 54%);
   }
 
   ::selection {
@@ -161,8 +252,9 @@
 
 @layer components {
   .btn-primary {
-    @apply px-5 py-2.5 rounded-lg text-white
+    @apply min-h-10 px-5 py-2.5 rounded-lg text-white
            font-medium
+           inline-flex items-center justify-center gap-2
            transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed;
     background-color: var(--accent-blue);
     box-shadow: 0 4px 14px rgba(59, 130, 246, 0.25);
@@ -177,8 +269,9 @@
   }
 
   .btn-secondary {
-    @apply px-5 py-2.5 rounded-lg
+    @apply min-h-10 px-5 py-2.5 rounded-lg
            font-medium
+           inline-flex items-center justify-center gap-2
            transition-all duration-200;
     border: 1px solid var(--border-glass);
     color: var(--text-primary);
@@ -189,7 +282,7 @@
   }
 
   .btn-ghost {
-    @apply px-3 py-2 rounded-lg transition-all duration-200;
+    @apply min-h-10 px-3 py-2 rounded-lg inline-flex items-center justify-center gap-2 transition-all duration-200;
     color: var(--text-secondary);
   }
   .btn-ghost:hover {
@@ -214,7 +307,7 @@
   }
 
   .glass-panel {
-    @apply backdrop-blur-xl rounded-xl;
+    @apply backdrop-blur-xl rounded-lg;
     background-color: var(--bg-card);
     border: 1px solid var(--border-glass);
     box-shadow: var(--shadow-inset), var(--shadow-card);
@@ -232,6 +325,25 @@
     border-color: var(--border-hover);
     box-shadow: var(--shadow-card), 0 0 20px rgba(59, 130, 246, 0.05);
     transform: translateY(-2px);
+  }
+
+  [data-theme="xuan"] .glass-panel {
+    background-image:
+      radial-gradient(circle at 18% 24%, rgba(255, 252, 232, 0.42) 0 1px, transparent 1.5px),
+      radial-gradient(circle at 78% 62%, rgba(105, 72, 24, 0.08) 0 1px, transparent 1.7px),
+      repeating-linear-gradient(96deg, rgba(92, 62, 20, 0.032) 0 1px, transparent 1px 11px),
+      repeating-linear-gradient(4deg, rgba(255, 255, 255, 0.12) 0 1px, transparent 1px 15px);
+    background-size: 25px 25px, 37px 37px, 16px 100%, 100% 20px;
+    backdrop-filter: blur(10px);
+  }
+
+  [data-theme="xuan"] .input-field,
+  [data-theme="xuan"] textarea,
+  [data-theme="xuan"] input {
+    background-image:
+      repeating-linear-gradient(96deg, rgba(92, 62, 20, 0.026) 0 1px, transparent 1px 10px),
+      repeating-linear-gradient(4deg, rgba(255, 255, 255, 0.14) 0 1px, transparent 1px 14px);
+    box-shadow: inset 0 1px 0 rgba(255, 252, 232, 0.58), inset 0 0 18px rgba(121, 84, 29, 0.05);
   }
 
   .glow-border {

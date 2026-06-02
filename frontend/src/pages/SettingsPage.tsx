@@ -5,6 +5,7 @@ import {
   Cpu, Brain, Scissors, Server, AlertCircle,
   Database, Zap, MessageSquare, BookOpen, FileText,
   Palette, Sun, Moon, ScrollText, Check,
+  Trees, Flower2,
 } from 'lucide-react'
 import { getStats, getConfig } from '../services/api'
 import { useTheme } from '../components/ThemeContext'
@@ -32,6 +33,20 @@ const themes = [
     desc: '淡黄宣纸质感，仿宋古韵字体',
     icon: ScrollText,
     colors: ['#F4EBC8', '#EDE1BA', '#1A4A6E', '#6B3A5C'],
+  },
+  {
+    id: 'forest' as const,
+    name: '松林绿',
+    desc: '低饱和自然绿，适合长时间阅读',
+    icon: Trees,
+    colors: ['#F1F7ED', '#E4EFE1', '#166534', '#0F766E'],
+  },
+  {
+    id: 'rose' as const,
+    name: '暖玫瑰',
+    desc: '温暖浅色调，柔和但有层次',
+    icon: Flower2,
+    colors: ['#FFF7ED', '#FFE8D5', '#BE185D', '#C2410C'],
   },
 ]
 
@@ -67,7 +82,7 @@ export function SettingsPage() {
       variants={container}
       initial="hidden"
       animate="show"
-      className="max-w-3xl mx-auto px-4 lg:px-8 py-6 space-y-8"
+      className="max-w-4xl mx-auto px-4 lg:px-8 py-6 space-y-8"
     >
       {/* Header */}
       <motion.div variants={item}>
@@ -137,7 +152,7 @@ export function SettingsPage() {
                 <Palette size={16} className="text-[var(--accent-purple)]" />
                 主题风格
               </h3>
-              <div className="grid sm:grid-cols-3 gap-4">
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {themes.map(t => {
                   const Icon = t.icon
                   const isActive = theme === t.id
@@ -146,7 +161,7 @@ export function SettingsPage() {
                       key={t.id}
                       onClick={() => setTheme(t.id)}
                       className={`
-                        relative rounded-xl p-4 text-left transition-all duration-300
+                        min-h-[132px] relative rounded-lg p-4 text-left transition-all duration-300
                         ${isActive
                           ? 'ring-2 ring-[var(--accent-blue)] shadow-lg'
                           : 'hover:scale-[1.02]'

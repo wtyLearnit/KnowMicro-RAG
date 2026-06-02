@@ -15,6 +15,22 @@ const navItems = [
   { path: '/settings', label: '设置', icon: Settings },
 ]
 
+const sidebarBackgroundByTheme: Record<string, string> = {
+  cosmos: 'linear-gradient(180deg, rgba(10,17,40,0.95) 0%, rgba(5,8,20,0.98) 100%)',
+  light: 'linear-gradient(180deg, rgba(241,245,249,0.97) 0%, rgba(248,250,252,0.98) 100%)',
+  xuan: 'linear-gradient(180deg, rgba(230,216,170,0.97) 0%, rgba(237,225,186,0.98) 100%)',
+  forest: 'linear-gradient(180deg, rgba(230,241,232,0.97) 0%, rgba(241,247,237,0.98) 100%)',
+  rose: 'linear-gradient(180deg, rgba(255,241,242,0.97) 0%, rgba(255,247,237,0.98) 100%)',
+}
+
+const headerBackgroundByTheme: Record<string, string> = {
+  cosmos: 'rgba(5,8,20,0.8)',
+  light: 'rgba(248,250,252,0.8)',
+  xuan: 'rgba(237,225,186,0.85)',
+  forest: 'rgba(241,247,237,0.86)',
+  rose: 'rgba(255,247,237,0.86)',
+}
+
 export function Layout({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
@@ -61,11 +77,7 @@ export function Layout({ children }: { children: ReactNode }) {
           ${!sidebarOpen ? '-translate-x-full lg:translate-x-0' : 'translate-x-0'}
         `}
         style={{
-          background: theme === 'light'
-            ? 'linear-gradient(180deg, rgba(241,245,249,0.97) 0%, rgba(248,250,252,0.98) 100%)'
-            : theme === 'xuan'
-              ? 'linear-gradient(180deg, rgba(230,216,170,0.97) 0%, rgba(237,225,186,0.98) 100%)'
-              : 'linear-gradient(180deg, rgba(10,17,40,0.95) 0%, rgba(5,8,20,0.98) 100%)',
+          background: sidebarBackgroundByTheme[theme] ?? sidebarBackgroundByTheme.cosmos,
           borderColor: 'var(--border-glass)',
         }}
       >
@@ -169,11 +181,7 @@ export function Layout({ children }: { children: ReactNode }) {
         <header className="h-14 border-b flex items-center px-4 lg:px-6 backdrop-blur-xl"
                 style={{
                   borderColor: 'var(--border-glass)',
-                  background: theme === 'light'
-                    ? 'rgba(248,250,252,0.8)'
-                    : theme === 'xuan'
-                      ? 'rgba(237,225,186,0.85)'
-                      : 'rgba(5,8,20,0.8)',
+                  background: headerBackgroundByTheme[theme] ?? headerBackgroundByTheme.cosmos,
                 }}>
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
