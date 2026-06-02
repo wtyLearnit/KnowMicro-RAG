@@ -33,6 +33,7 @@ export function Layout({ children }: { children: ReactNode }) {
     setSidebarCollapsed(prev => {
       const next = !prev
       localStorage.setItem('sidebarCollapsed', String(next))
+      window.dispatchEvent(new CustomEvent('sidebar-toggle', { detail: { collapsed: next } }))
       return next
     })
   }

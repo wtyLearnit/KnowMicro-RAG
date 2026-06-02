@@ -153,3 +153,47 @@ export interface TrashData {
   documents: TrashDocument[];
   conversations: TrashConversation[];
 }
+
+// ── User Model Config ────────────────────────────────
+export interface UserModelConfig {
+  id: string;
+  config_type: 'llm' | 'embedding';
+  provider: string;
+  base_url: string;
+  model_name: string;
+  is_active: boolean;
+  extra_params: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ModelTestResult {
+  success: boolean;
+  latency_ms: number;
+  message: string;
+  error?: string;
+}
+
+export interface ActiveConfigs {
+  llm: UserModelConfig | null;
+  embedding: UserModelConfig | null;
+  llm_configs: UserModelConfig[];
+  embedding_configs: UserModelConfig[];
+}
+
+export interface ModelInfo {
+  id: string;
+  owned_by: string;
+}
+
+export interface FetchModelsResult {
+  success: boolean;
+  models: ModelInfo[];
+  error?: string;
+}
+
+export interface BatchAddResult {
+  created: number;
+  skipped: number;
+  models: string[];
+}

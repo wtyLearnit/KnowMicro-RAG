@@ -49,12 +49,14 @@ class RAGService:
         doc_id: str,
         doc_name: str,
         chunks: List[Dict[str, Any]],
+        emb_svc=None,
     ):
         """Embed and store document chunks in ChromaDB + BM25."""
+        _emb = emb_svc or embedding_service
         collection = self._get_collection(collection_id)
 
         texts = [c["text"] for c in chunks]
-        embeddings = await embedding_service.embed(texts)
+        embeddings = await _emb.embed(texts)
 
         ids = [f"{doc_id}_chunk_{c['index']}" for c in chunks]
         metadatas = [
@@ -113,13 +115,15 @@ class RAGService:
         collection_id: str,
         query: str,
         top_k: int = 10,
+        emb_svc=None,
     ) -> List[Dict[str, Any]]:
         """Semantic (vector) retrieval from ChromaDB."""
+        _emb = emb_svc or embedding_service
         collection = self._get_collection(collection_id)
         if collection.count() == 0:
             return []
 
-        query_embedding = await embedding_service.embed_single(query)
+        query_embedding = await _emb.embed_single(query)
 
         results = collection.query(
             query_embeddings=[query_embedding],
@@ -150,6 +154,7 @@ class RAGService:
         query: str,
         top_k: int = 5,
         score_threshold: float = 0.0,
+        emb_svc=None,
     ) -> List[Dict[str, Any]]:
         """
         Retrieve top-k relevant chunks via hybrid search (semantic + BM25).
@@ -161,7 +166,7 @@ class RAGService:
 
         if settings.hybrid_search_enabled and self.bm25.is_ready(collection_id):
             semantic_results = await self._semantic_retrieve(
-                collection_id, query, fetch_k
+                collection_id, query, fetch_k, emb_svc=emb_svc,
             )
             bm25_results = self.bm25.search(collection_id, query, fetch_k)
 
@@ -192,7 +197,7 @@ class RAGService:
                 if key in semantic_scores:
                     item["score"] = semantic_scores[key]
         else:
-            fused = await self._semantic_retrieve(collection_id, query, fetch_k)
+            fused = await self._semantic_retrieve(collection_id, query, fetch_k, emb_svc=emb_svc)
 
         # Filter by threshold (applies to semantic scores, 0-1 range)
         if score_threshold > 0:
@@ -249,17 +254,20 @@ class RAGService:
         history: List[Dict[str, str]],
         top_k: int = 5,
         mode: str = "socratic",
+        llm_svc=None,
+        emb_svc=None,
     ) -> Dict[str, Any]:
         """Non-streaming RAG query: rewrite → retrieve → generate."""
+        _llm = llm_svc or llm_service
         # Step 0: Query rewriting
         search_query = user_message
         if settings.query_rewrite_enabled and history:
-            search_query = await llm_service.rewrite_query(user_message, history)
+            search_query = await _llm.rewrite_query(user_message, history)
 
-        retrieved = await self.retrieve(collection_id, search_query, top_k)
+        retrieved = await self.retrieve(collection_id, search_query, top_k, emb_svc=emb_svc)
         context = self.build_context(retrieved, top_k)
 
-        response = await llm_service.chat(user_message, history, context, mode)
+        response = await _llm.chat(user_message, history, context, mode)
 
         return {
             "content": response["content"],
@@ -274,17 +282,20 @@ class RAGService:
         history: List[Dict[str, str]],
         top_k: int = 5,
         mode: str = "socratic",
+        llm_svc=None,
+        emb_svc=None,
     ) -> AsyncIterator[Dict[str, Any]]:
         """Streaming RAG query: rewrite → retrieve → generate."""
+        _llm = llm_svc or llm_service
         # Step 0: Query rewriting
         search_query = user_message
         if settings.query_rewrite_enabled:
-            search_query = await llm_service.rewrite_query(user_message, history)
+            search_query = await _llm.rewrite_query(user_message, history)
 
-        retrieved = await self.retrieve(collection_id, search_query, top_k)
+        retrieved = await self.retrieve(collection_id, search_query, top_k, emb_svc=emb_svc)
         context = self.build_context(retrieved, top_k)
 
-        async for chunk in llm_service.chat_stream(user_message, history, context, mode):
+        async for chunk in _llm.chat_stream(user_message, history, context, mode):
             yield {"type": "chunk", "content": chunk}
 
         yield {

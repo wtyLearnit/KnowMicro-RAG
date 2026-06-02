@@ -3,10 +3,12 @@
  * Extracted from ChatPage.tsx.
  */
 import { useState, useRef, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Send, SlidersHorizontal, ChevronDown, Check, Loader2 } from 'lucide-react'
+import { Send, SlidersHorizontal, ChevronDown, Check, Loader2, Bot } from 'lucide-react'
 import { TOP_K_OPTIONS } from '../../utils/constants'
-import type { Collection } from '../../types'
+import { getProvider } from '../../utils/providers'
+import type { Collection, ActiveConfigs } from '../../types'
 
 interface ChatInputProps {
   isOrphanedConv: boolean
@@ -17,10 +19,13 @@ interface ChatInputProps {
   streaming: boolean
   regeneratingMsgId: string | null
   activeCollection: Collection | null
+  activeModels: ActiveConfigs | null
+  selectedModelId: string | null
   onModeChange: (mode: 'socratic' | 'direct') => void
   onTopKChange: (value: number) => void
   onInputChange: (value: string) => void
   onSend: () => void
+  onModelChange: (configId: string | null) => void
 }
 
 export function ChatInput({
@@ -32,19 +37,28 @@ export function ChatInput({
   streaming,
   regeneratingMsgId,
   activeCollection,
+  activeModels,
+  selectedModelId,
   onModeChange,
   onTopKChange,
   onInputChange,
   onSend,
+  onModelChange,
 }: ChatInputProps) {
+  const navigate = useNavigate()
   const [showTopKPanel, setShowTopKPanel] = useState(false)
+  const [showModelPanel, setShowModelPanel] = useState(false)
   const topKRef = useRef<HTMLDivElement | null>(null)
+  const modelRef = useRef<HTMLDivElement | null>(null)
 
-  // Close Top-K panel on outside click
+  // Close panels on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (topKRef.current && !topKRef.current.contains(e.target as Node)) {
         setShowTopKPanel(false)
+      }
+      if (modelRef.current && !modelRef.current.contains(e.target as Node)) {
+        setShowModelPanel(false)
       }
     }
     document.addEventListener('mousedown', handler)
@@ -211,6 +225,121 @@ export function ChatInput({
             }}
           />
         </div>
+
+        {/* Model selector */}
+        <div className="relative shrink-0" ref={modelRef}>
+          {(activeModels?.llm_configs?.length ?? 0) > 0 ? (
+            <button
+              onClick={() => setShowModelPanel(!showModelPanel)}
+              disabled={isDisabled}
+              className="flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-xs transition-all duration-200"
+              style={{
+                background: 'var(--bg-input)',
+                border: '1px solid var(--border-glass)',
+                color: 'var(--text-secondary)',
+                cursor: isDisabled ? 'not-allowed' : 'pointer',
+              }}
+            >
+              <Bot size={14} />
+              <span className="max-w-[100px] truncate">
+                {(() => {
+                  const active = activeModels?.llm_configs?.find(c => c.id === (selectedModelId || activeModels?.llm?.id))
+                  if (active) {
+                    const prov = getProvider(active.provider)
+                    return <>{prov.icon} {active.model_name}</>
+                  }
+                  return activeModels?.llm?.model_name || '选择模型'
+                })()}
+              </span>
+              <ChevronDown
+                size={12}
+                className={`transition-transform ${showModelPanel ? 'rotate-180' : ''}`}
+              />
+            </button>
+          ) : (
+            <button
+              onClick={() => navigate('/settings')}
+              className="flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-xs transition-all duration-200"
+              style={{
+                background: 'var(--bg-input)',
+                border: '1px solid var(--border-glass)',
+                color: 'var(--text-muted)',
+              }}
+              title="未配置模型，点击前往设置"
+            >
+              <Bot size={14} />
+              <span>未配置</span>
+            </button>
+          )}
+
+          <AnimatePresence>
+            {showModelPanel && (activeModels?.llm_configs?.length ?? 0) > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 8 }}
+                className="absolute bottom-full right-0 mb-2 w-56 glass-panel p-2 z-50"
+                style={{ boxShadow: '0 -8px 30px rgba(0,0,0,0.15)' }}
+              >
+                <div
+                  className="text-xs font-medium px-2 py-1.5 mb-1"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  选择模型
+                </div>
+                <div className="max-h-48 overflow-y-auto">
+                  {activeModels!.llm_configs.map(c => {
+                    const isSelected = (selectedModelId || activeModels?.llm?.id) === c.id
+                    const prov = getProvider(c.provider)
+                    return (
+                      <button
+                        key={c.id}
+                        onClick={() => {
+                          onModelChange(c.id)
+                          setShowModelPanel(false)
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-lg transition-all duration-150 hover:bg-[var(--bg-card-hover)]"
+                        style={{
+                          background: isSelected ? 'rgba(59,130,246,0.12)' : 'transparent',
+                          border: isSelected ? '1px solid rgba(59,130,246,0.3)' : '1px solid transparent',
+                        }}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm shrink-0" title={prov.name}>{prov.icon}</span>
+                            <span
+                              className="text-sm font-medium"
+                              style={{ color: isSelected ? 'var(--accent-blue)' : 'var(--text-primary)' }}
+                            >
+                              {c.model_name}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            {c.is_active && (
+                              <span className="w-1.5 h-1.5 rounded-full bg-green-400" title="默认模型" />
+                            )}
+                            {isSelected && <Check size={14} className="text-[var(--accent-blue)]" />}
+                          </div>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+                <button
+                  onClick={() => {
+                    navigate('/settings')
+                    setShowModelPanel(false)
+                  }}
+                  className="w-full text-left px-3 py-2 rounded-lg text-xs transition-all hover:bg-[var(--bg-card-hover)] border-t mt-1 pt-2"
+                  style={{ color: 'var(--text-muted)', borderColor: 'var(--border-glass)' }}
+                >
+                  + 添加新模型...
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
         <button
           onClick={onSend}
           disabled={isDisabled || !input.trim()}

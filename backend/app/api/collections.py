@@ -10,7 +10,8 @@ from app.database import get_db, Collection, Document, Conversation
 from app.schemas.schemas import (
     CollectionCreate, CollectionUpdate, CollectionOut
 )
-from app.services.rag_service import rag_service
+from app.dependencies import get_rag_service
+from app.services.rag_service import RAGService
 
 router = APIRouter(prefix="/api/collections", tags=["collections"])
 
@@ -216,6 +217,7 @@ async def restore_collection(
 async def permanent_delete_collection(
     collection_id: str,
     db: AsyncSession = Depends(get_db),
+    rag: RAGService = Depends(get_rag_service),
 ):
     """Permanently delete a collection and all its documents."""
     collection = await db.get(Collection, collection_id)
@@ -235,4 +237,4 @@ async def permanent_delete_collection(
     await db.commit()
 
     # Clean up vector store
-    await rag_service.delete_collection(collection_id)
+    await rag.delete_collection(collection_id)

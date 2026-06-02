@@ -98,6 +98,7 @@ class ChatRequest(BaseModel):
     conversation_id: Optional[str] = None
     top_k: int = Field(default=5, ge=1, le=20)
     mode: str = Field(default="socratic", pattern="^(socratic|direct)$")
+    model_config_id: Optional[str] = None
 
 
 class SourceItem(BaseModel):
@@ -158,6 +159,13 @@ class RegenerateRequest(BaseModel):
     """Regenerate the assistant reply for a given user message."""
     mode: str = Field(default="socratic", pattern="^(socratic|direct)$")
     top_k: int = Field(default=5, ge=1, le=20)
+    model_config_id: Optional[str] = None
+
+
+class BranchRequest(BaseModel):
+    """Create a branch conversation from a specific message."""
+    message_id: str = Field(..., min_length=1)
+    title: str = Field(default="分支对话", min_length=1, max_length=512)
 
 
 # ── System ──────────────────────────────────────────
@@ -234,3 +242,96 @@ class TrashCounts(BaseModel):
     collections: int = 0
     documents: int = 0
     conversations: int = 0
+
+
+# ── User Model Config ────────────────────────────────
+class UserModelConfigCreate(BaseModel):
+    config_type: str = Field(..., pattern="^(llm|embedding)$")
+    provider: str = Field(default="custom", max_length=32)
+    base_url: str = Field(..., min_length=1, max_length=512)
+    api_key: str = ""
+    model_name: str = Field(..., min_length=1, max_length=128)
+    is_active: bool = False
+    extra_params: Dict[str, Any] = {}
+
+
+class UserModelConfigUpdate(BaseModel):
+    provider: Optional[str] = None
+    base_url: Optional[str] = None
+    api_key: Optional[str] = None
+    model_name: Optional[str] = None
+    is_active: Optional[bool] = None
+    extra_params: Optional[Dict[str, Any]] = None
+
+
+class UserModelConfigOut(BaseModel):
+    id: str
+    config_type: str
+    provider: str
+    base_url: str
+    model_name: str
+    is_active: bool
+    extra_params: Dict[str, Any] = {}
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ModelTestRequest(BaseModel):
+    """测试连接：可引用已保存的配置，或直接传入参数。"""
+    config_id: Optional[str] = None
+    config_type: Optional[str] = Field(default=None, pattern="^(llm|embedding)$")
+    provider: Optional[str] = None
+    base_url: Optional[str] = None
+    api_key: Optional[str] = None
+    model_name: Optional[str] = None
+
+
+class ModelTestResponse(BaseModel):
+    success: bool
+    latency_ms: int = 0
+    message: str = ""
+    error: Optional[str] = None
+
+
+class ActiveConfigsResponse(BaseModel):
+    llm: Optional[UserModelConfigOut] = None
+    embedding: Optional[UserModelConfigOut] = None
+    llm_configs: List[UserModelConfigOut] = []
+    embedding_configs: List[UserModelConfigOut] = []
+
+
+class FetchModelsRequest(BaseModel):
+    """请求获取供应商可用模型列表。"""
+    config_type: str = Field(..., pattern="^(llm|embedding)$")
+    base_url: str = Field(..., min_length=1)
+    api_key: str = ""
+    config_id: Optional[str] = None
+
+
+class ModelInfo(BaseModel):
+    id: str
+    owned_by: str = ""
+
+
+class FetchModelsResponse(BaseModel):
+    success: bool
+    models: List[ModelInfo] = []
+    error: Optional[str] = None
+
+
+class BatchAddRequest(BaseModel):
+    """批量添加模型配置。"""
+    config_type: str = Field(..., pattern="^(llm|embedding)$")
+    provider: str = "custom"
+    base_url: str = Field(..., min_length=1)
+    api_key: str = ""
+    models: List[str] = Field(..., min_length=1)
+    extra_params: Optional[Dict[str, Any]] = None
+
+
+class BatchAddResponse(BaseModel):
+    created: int
+    skipped: int
+    models: List[str] = []

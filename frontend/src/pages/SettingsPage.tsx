@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { getStats, getConfig } from '../services/api'
 import { useTheme } from '../components/ThemeContext'
+import { ModelConfigForm } from '../components/settings/ModelConfigForm'
 import type { Stats, SystemConfig } from '../types'
 
 const themes = [
@@ -75,7 +76,7 @@ export function SettingsPage() {
           系统设置
         </h1>
         <p className="text-[var(--text-muted)] text-sm mt-1">
-          查看当前配置和系统状态。修改配置请编辑后端 .env 文件。
+          查看当前配置和系统状态，自定义模型设置。
         </p>
       </motion.div>
 
@@ -217,33 +218,15 @@ export function SettingsPage() {
                 </p>
               </div>
             )}
+
+            {/* LLM 模型配置 */}
+            <ModelConfigForm configType="llm" title="LLM 大模型" icon="cpu" />
+
+            {/* Embedding 模型配置 */}
+            <ModelConfigForm configType="embedding" title="Embedding 大模型" icon="brain" />
+
+            {/* 只读系统信息 */}
             <div className="grid sm:grid-cols-2 gap-4">
-              <div className="glass-card group" style={{ '--hover-border': 'var(--accent-blue)' } as any}>
-                <div className="w-10 h-10 rounded-lg flex items-center justify-center mb-3"
-                     style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)' }}>
-                  <Cpu size={20} className="text-[var(--accent-blue)]" />
-                </div>
-                <h3 className="text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>LLM 模型</h3>
-                <p className="text-lg font-mono" style={{ color: 'var(--text-primary)' }}>
-                  {config?.llm_model ?? '未配置'}
-                </p>
-                <p className="text-xs mt-1" style={{ color: 'var(--text-dim)' }}>
-                  对话生成使用的大语言模型
-                </p>
-              </div>
-              <div className="glass-card group">
-                <div className="w-10 h-10 rounded-lg flex items-center justify-center mb-3"
-                     style={{ background: 'rgba(167,139,250,0.1)', border: '1px solid rgba(167,139,250,0.2)' }}>
-                  <Brain size={20} className="text-[var(--accent-purple)]" />
-                </div>
-                <h3 className="text-xs font-medium mb-1" style={{ color: 'var(--text-muted)' }}>Embedding 模型</h3>
-                <p className="text-lg font-mono" style={{ color: 'var(--text-primary)' }}>
-                  {config?.embed_model ?? '未配置'}
-                </p>
-                <p className="text-xs mt-1" style={{ color: 'var(--text-dim)' }}>
-                  {config?.embed_dimensions ?? '?'} 维向量
-                </p>
-              </div>
               <div className="glass-card group">
                 <div className="w-10 h-10 rounded-lg flex items-center justify-center mb-3"
                      style={{ background: 'rgba(34,211,238,0.1)', border: '1px solid rgba(34,211,238,0.2)' }}>

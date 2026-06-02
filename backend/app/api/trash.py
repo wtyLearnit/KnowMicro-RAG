@@ -1,6 +1,8 @@
 """
 苏格拉底之窗 - Trash (回收站) API Routes
 """
+import os
+from pathlib import Path
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,7 +11,8 @@ from app.database import get_db, Collection, Document, Conversation, Message
 from app.schemas.schemas import (
     TrashResponse, TrashCollectionOut, TrashDocumentOut, TrashConversationOut,
 )
-from app.services.rag_service import rag_service
+from app.dependencies import get_rag_service
+from app.services.rag_service import RAGService
 
 router = APIRouter(prefix="/api/trash", tags=["trash"])
 
@@ -104,6 +107,7 @@ async def get_trash(db: AsyncSession = Depends(get_db)):
 async def permanent_delete_collection(
     collection_id: str,
     db: AsyncSession = Depends(get_db),
+    rag: RAGService = Depends(get_rag_service),
 ):
     """Permanently delete an archived collection and all associated data."""
     collection = await db.get(Collection, collection_id)
@@ -120,13 +124,14 @@ async def permanent_delete_collection(
     await db.delete(collection)
     await db.commit()
 
-    await rag_service.delete_collection(collection_id)
+    await rag.delete_collection(collection_id)
 
 
 @router.delete("/documents/{document_id}", status_code=204)
 async def permanent_delete_document(
     document_id: str,
     db: AsyncSession = Depends(get_db),
+    rag: RAGService = Depends(get_rag_service),
 ):
     """Permanently delete an archived document."""
     doc = await db.get(Document, document_id)
@@ -134,10 +139,21 @@ async def permanent_delete_document(
         raise HTTPException(404, "文档不存在")
 
     collection_id = doc.collection_id
+    file_path = doc.file_path
     await db.delete(doc)
     await db.commit()
 
-    await rag_service.delete_document_chunks(collection_id, document_id)
+    # Clean up original file on disk
+    if file_path:
+        try:
+            os.remove(file_path)
+            parent = Path(file_path).parent
+            if parent.is_dir() and not any(parent.iterdir()):
+                parent.rmdir()
+        except OSError:
+            pass
+
+    await rag.delete_document_chunks(collection_id, document_id)
 
 
 @router.delete("/conversations/{conversation_id}", status_code=204)

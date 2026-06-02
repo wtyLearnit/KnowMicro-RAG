@@ -4,7 +4,8 @@
 import uuid
 from datetime import datetime, timezone
 from sqlalchemy import (
-    Column, String, Text, DateTime, Integer, Float, ForeignKey, JSON, Index
+    Column, String, Text, DateTime, Integer, Float, ForeignKey, JSON, Index,
+    select, func,
 )
 from sqlalchemy.orm import DeclarativeBase, relationship
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
@@ -46,6 +47,7 @@ class Document(Base):
     status = Column(String(32), default="processing")     # processing, ready, error
     error_message = Column(Text, default="")
     content = Column(Text, default="")                    # 存储解析后的文本内容
+    file_path = Column(String(1024), default="")           # 原始文件磁盘路径（空=未保存）
     metadata_ = Column("metadata", JSON, default=dict)
     is_archived = Column(Integer, default=0)
     archived_at = Column(DateTime, nullable=True)
@@ -79,6 +81,7 @@ class Conversation(Base):
 
     __table_args__ = (
         Index("idx_conversation_collection", "collection_id"),
+        Index("idx_conversation_orphaned_archived", "is_orphaned", "is_archived"),
     )
 
 
@@ -96,9 +99,44 @@ class Message(Base):
 
     conversation = relationship("Conversation", back_populates="messages")
 
+    __table_args__ = (
+        Index("idx_message_conversation", "conversation_id"),
+        Index("idx_message_created", "created_at"),
+    )
+
+
+# ── User Model Config (用户模型配置) ─────────────────
+class UserModelConfig(Base):
+    __tablename__ = "user_model_configs"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    config_type = Column(String(16), nullable=False)          # "llm" | "embedding"
+    provider = Column(String(32), default="custom")           # openai/deepseek/zhipu/qwen/ollama/custom
+    base_url = Column(String(512), nullable=False)
+    api_key = Column(Text, default="")                         # API 密钥（明文存储）
+    model_name = Column(String(128), nullable=False)
+    is_active = Column(Integer, default=0)                    # 同类型仅一个激活
+    extra_params = Column(JSON, default=dict)                  # temperature, max_tokens 等
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index("idx_umc_config_type", "config_type"),
+        Index("idx_umc_active", "config_type", "is_active"),
+    )
+
 
 # ── Engine & Session ────────────────────────────────
-engine = create_async_engine(settings.database_url, echo=False)
+# SQLite with aiosqlite uses NullPool (no connection pool — SQLite handles its own locking).
+# pool_pre_ping validates the connection; pool_recycle prevents stale file handles.
+engine = create_async_engine(
+    settings.database_url,
+    echo=False,
+    pool_pre_ping=True,
+    pool_recycle=3600,
+    connect_args={"check_same_thread": False},
+)
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
@@ -203,12 +241,127 @@ async def _migrate_archive_fields(conn):
         await conn.execute(text("ALTER TABLE conversations ADD COLUMN archived_at DATETIME"))
 
 
-async def init_db():
-    """Create all tables on startup, with migration support."""
+async def _migrate_api_key_column():
+    """Migrate: rename api_key_encrypted to api_key in user_model_configs."""
+    from sqlalchemy import text
+    import logging
+    logger = logging.getLogger("Socratess_window")
+
     async with engine.begin() as conn:
-        await _migrate_conversations(conn)
-        await _migrate_archive_fields(conn)
-        await conn.run_sync(Base.metadata.create_all)
+        if not await _table_exists(conn, "user_model_configs"):
+            return
+
+        result = await conn.execute(text("PRAGMA table_info(user_model_configs)"))
+        cols = {row[1] for row in result.fetchall()}
+        if 'api_key_encrypted' in cols and 'api_key' not in cols:
+            logger.info("Migrating user_model_configs: renaming api_key_encrypted to api_key")
+            await conn.execute(text("ALTER TABLE user_model_configs RENAME COLUMN api_key_encrypted TO api_key"))
+
+
+async def init_db():
+    """
+    Ensure database schema is up to date via Alembic migrations.
+    Falls back to create_all for fresh databases.
+    """
+    import logging
+    from alembic.config import Config
+    from alembic import command
+
+    logger = logging.getLogger("Socratess_window")
+
+    # Check if alembic_version table exists (tracks applied migrations)
+    async with engine.begin() as conn:
+        from sqlalchemy import text
+        result = await conn.execute(
+            text("SELECT name FROM sqlite_master WHERE type='table' AND name='alembic_version'")
+        )
+        has_alembic = result.fetchone() is not None
+
+    if not has_alembic:
+        # Fresh database: run legacy migrations then stamp for Alembic
+        logger.info("Fresh database detected, running legacy migrations then Alembic stamp")
+        async with engine.begin() as conn:
+            await _migrate_conversations(conn)
+            await _migrate_archive_fields(conn)
+            await conn.run_sync(Base.metadata.create_all)
+        try:
+            alembic_cfg = Config("alembic.ini")
+            command.stamp(alembic_cfg, "head")
+            logger.info("Alembic stamped to head after legacy init")
+        except Exception:
+            logger.warning("Could not stamp Alembic, will retry on next startup")
+    else:
+        # Existing database: use Alembic migrations
+        try:
+            alembic_cfg = Config("alembic.ini")
+            command.upgrade(alembic_cfg, "head")
+            logger.info("Alembic migrations applied successfully")
+        except Exception as exc:
+            logger.error("Alembic migration failed, falling back to create_all: %s", exc)
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+
+    # Migrate: rename api_key_encrypted to api_key if needed
+    await _migrate_api_key_column()
+
+    # Seed default model configs if the table is empty
+    await _seed_default_model_configs()
+
+
+async def _seed_default_model_configs():
+    """为首次启动创建系统默认的模型配置记录。"""
+    import logging
+    from sqlalchemy import select, text as sql_text
+
+    logger = logging.getLogger("Socratess_window")
+
+    async with async_session() as session:
+        # Check if table exists and is empty
+        try:
+            result = await session.execute(
+                select(func.count(UserModelConfig.id))
+            )
+            count = result.scalar()
+        except Exception:
+            return  # Table doesn't exist yet
+
+        if count and count > 0:
+            return  # Already seeded
+
+        # Skip seeding if API keys are placeholder values (user should configure via frontend)
+        if settings.llm_api_key in ("sk-your-key-here", ""):
+            return
+
+        # Create default LLM config from system settings
+        from app.utils.crypto import encrypt_api_key
+        llm_config = UserModelConfig(
+            config_type="llm",
+            provider="custom",
+            base_url=settings.llm_api_base,
+            api_key=encrypt_api_key(settings.llm_api_key),
+            model_name=settings.llm_model,
+            is_active=1,
+            extra_params={
+                "temperature": settings.llm_temperature,
+                "max_tokens": settings.llm_max_tokens,
+            },
+        )
+        embed_config = UserModelConfig(
+            config_type="embedding",
+            provider="custom",
+            base_url=settings.embed_api_base,
+            api_key=encrypt_api_key(settings.embed_api_key),
+            model_name=settings.embed_model,
+            is_active=1,
+            extra_params={
+                "dimensions": settings.embed_dimensions,
+                "batch_size": settings.embed_batch_size,
+            },
+        )
+        session.add(llm_config)
+        session.add(embed_config)
+        await session.commit()
+        logger.info("Seeded default model configs from system settings")
 
 
 async def get_db() -> AsyncSession:

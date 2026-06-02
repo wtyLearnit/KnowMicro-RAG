@@ -8,19 +8,83 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, delete as sql_delete
-from app.database import get_db, async_session as db_session_factory, Collection, Conversation, Message
+from sqlalchemy import select, func, delete as sql_delete, case
+from app.database import get_db, async_session as db_session_factory, Collection, Conversation, Message, UserModelConfig
 from app.schemas.schemas import (
     ChatRequest, ChatResponse, SearchRequest, SearchResponse,
     SearchResultItem, ConversationOut, MessageOut,
-    ConversationRename, MessageUpdate, RegenerateRequest,
+    ConversationRename, MessageUpdate, RegenerateRequest, BranchRequest,
 )
-from app.services.rag_service import rag_service
-from app.services.llm_service import llm_service
+from app.dependencies import get_rag_service, get_llm_service
+from app.services.rag_service import RAGService
+from app.services.llm_service import LLMService
+from app.services.embedding_service import EmbeddingService
 from app.services.exceptions import ExternalServiceError
+from app.utils.crypto import decrypt_api_key
 
 logger = logging.getLogger("Socratess_window")
 router = APIRouter(tags=["chat"])
+
+
+async def _resolve_model_services(
+    db: AsyncSession,
+    model_config_id: Optional[str] = None,
+):
+    """
+    根据 model_config_id 解析用户配置，返回 (llm_svc, emb_svc)。
+    若未指定或找不到配置，返回 (None, None) 使用系统默认。
+    """
+    from app.services.llm_service import create_llm_service_from_config
+    from app.services.embedding_service import create_embedding_service_from_config
+
+    llm_svc = None
+    emb_svc = None
+
+    # Resolve LLM service
+    if model_config_id:
+        config = await db.get(UserModelConfig, model_config_id)
+        if config and config.config_type == "llm":
+            llm_svc = create_llm_service_from_config({
+                "base_url": config.base_url,
+                "api_key": decrypt_api_key(config.api_key) if config.api_key else "",
+                "model_name": config.model_name,
+                "extra_params": config.extra_params or {},
+            })
+
+    # Always resolve active embedding config
+    result = await db.execute(
+        select(UserModelConfig).where(
+            UserModelConfig.config_type == "embedding",
+            UserModelConfig.is_active == 1,
+        )
+    )
+    emb_config = result.scalar_one_or_none()
+    if emb_config:
+        emb_svc = create_embedding_service_from_config({
+            "base_url": emb_config.base_url,
+            "api_key": decrypt_api_key(emb_config.api_key) if emb_config.api_key else "",
+            "model_name": emb_config.model_name,
+            "extra_params": emb_config.extra_params or {},
+        })
+
+    # If no specific LLM config, try active LLM
+    if llm_svc is None:
+        result = await db.execute(
+            select(UserModelConfig).where(
+                UserModelConfig.config_type == "llm",
+                UserModelConfig.is_active == 1,
+            )
+        )
+        llm_config = result.scalar_one_or_none()
+        if llm_config:
+            llm_svc = create_llm_service_from_config({
+                "base_url": llm_config.base_url,
+                "api_key": decrypt_api_key(llm_config.api_key) if llm_config.api_key else "",
+                "model_name": llm_config.model_name,
+                "extra_params": llm_config.extra_params or {},
+            })
+
+    return llm_svc, emb_svc
 
 # ── Shared Helpers ───────────────────────────────────
 
@@ -87,9 +151,10 @@ async def _free_chat_generator(
     user_message: str,
     history: List[Dict[str, str]],
     mode: str,
+    llm: LLMService,
 ) -> AsyncIterator[Dict[str, Any]]:
-    """Adapt llm_service.chat_stream output to unified {type, content/sources} event dicts."""
-    async for chunk in llm_service.chat_stream(
+    """Adapt LLM chat_stream output to unified {type, content/sources} event dicts."""
+    async for chunk in llm.chat_stream(
         user_message=user_message, history=history, context="", mode=mode,
     ):
         yield {"type": "chunk", "content": chunk}
@@ -148,13 +213,14 @@ search_router = APIRouter(prefix="/api/search", tags=["search"])
 async def semantic_search(
     req: SearchRequest,
     db: AsyncSession = Depends(get_db),
+    rag: RAGService = Depends(get_rag_service),
 ):
     """Semantic search across a collection (or globally)."""
     if req.collection_id:
         collection = await db.get(Collection, req.collection_id)
         if not collection:
             raise HTTPException(404, "知识库不存在")
-        results = await rag_service.retrieve(
+        results = await rag.retrieve(
             req.collection_id, req.query, req.top_k
         )
     else:
@@ -163,7 +229,7 @@ async def semantic_search(
         all_collections = result.scalars().all()
         results = []
         for coll in all_collections:
-            coll_results = await rag_service.retrieve(
+            coll_results = await rag.retrieve(
                 coll.id, req.query, top_k=req.top_k
             )
             results.extend(coll_results)
@@ -195,6 +261,8 @@ chat_router = APIRouter(prefix="/api/chat", tags=["chat"])
 async def chat(
     req: ChatRequest,
     db: AsyncSession = Depends(get_db),
+    rag: RAGService = Depends(get_rag_service),
+    llm: LLMService = Depends(get_llm_service),
 ):
     """RAG-powered chat or free chat (no knowledge base)."""
     conversation, history, is_free = await _prepare_chat_context(
@@ -204,17 +272,23 @@ async def chat(
         db=db,
     )
 
+    # Resolve user model config (fallback to system defaults)
+    user_llm, user_emb = await _resolve_model_services(db, req.model_config_id)
+    active_llm = user_llm or llm
+
     # Run pipeline
     if is_free:
-        response = await llm_service.chat(req.message, history, context="", mode=req.mode)
+        response = await active_llm.chat(req.message, history, context="", mode=req.mode)
         sources = []
     else:
-        response = await rag_service.query(
+        response = await rag.query(
             collection_id=req.collection_id,
             user_message=req.message,
             history=history,
             top_k=req.top_k,
             mode=req.mode,
+            llm_svc=active_llm,
+            emb_svc=user_emb,
         )
         sources = response.get("sources", [])
 
@@ -242,6 +316,8 @@ async def chat(
 async def chat_stream(
     req: ChatRequest,
     db: AsyncSession = Depends(get_db),
+    rag: RAGService = Depends(get_rag_service),
+    llm: LLMService = Depends(get_llm_service),
 ):
     """Streaming chat via Server-Sent Events (RAG or free chat)."""
     conversation, history, is_free = await _prepare_chat_context(
@@ -251,6 +327,10 @@ async def chat_stream(
         db=db,
     )
 
+    # Resolve user model config (fallback to system defaults)
+    user_llm, user_emb = await _resolve_model_services(db, req.model_config_id)
+    active_llm = user_llm or llm
+
     conversation_id = conversation.id
     collection_id = req.collection_id
     top_k = req.top_k
@@ -259,15 +339,17 @@ async def chat_stream(
 
     async def build_generator():
         if is_free:
-            async for event in _free_chat_generator(user_message, history, mode):
+            async for event in _free_chat_generator(user_message, history, mode, active_llm):
                 yield event
         else:
-            async for event in rag_service.query_stream(
+            async for event in rag.query_stream(
                 collection_id=collection_id,
                 user_message=user_message,
                 history=history,
                 top_k=top_k,
                 mode=mode,
+                llm_svc=active_llm,
+                emb_svc=user_emb,
             ):
                 yield event
 
@@ -286,34 +368,36 @@ async def chat_stream(
 conv_router = APIRouter(prefix="/api/conversations", tags=["conversations"])
 
 
+def _build_conversation_rows(rows) -> List[ConversationOut]:
+    """Convert joined query rows to ConversationOut list.  Single-query, no N+1."""
+    return [
+        ConversationOut(
+            id=conv.id,
+            collection_id=conv.collection_id,
+            title=conv.title,
+            model_used=conv.model_used,
+            message_count=msg_cnt,
+            is_orphaned=bool(conv.is_orphaned),
+            created_at=conv.created_at,
+            updated_at=conv.updated_at,
+        )
+        for conv, msg_cnt in rows
+    ]
+
+
 @conv_router.get("/orphaned", response_model=List[ConversationOut])
 async def list_orphaned_conversations(
     db: AsyncSession = Depends(get_db),
 ):
     """List orphaned conversations (kept after collection deletion)."""
     result = await db.execute(
-        select(Conversation)
+        select(Conversation, func.count(Message.id))
+        .outerjoin(Message, Message.conversation_id == Conversation.id)
         .where(Conversation.is_orphaned == 1, Conversation.is_archived == 0)
+        .group_by(Conversation.id)
         .order_by(Conversation.updated_at.desc())
     )
-    conversations = result.scalars().all()
-
-    out = []
-    for conv in conversations:
-        msg_count = await db.scalar(
-            select(func.count(Message.id)).where(Message.conversation_id == conv.id)
-        )
-        out.append(ConversationOut(
-            id=conv.id,
-            collection_id=conv.collection_id,
-            title=conv.title,
-            model_used=conv.model_used,
-            message_count=msg_count or 0,
-            is_orphaned=True,
-            created_at=conv.created_at,
-            updated_at=conv.updated_at,
-        ))
-    return out
+    return _build_conversation_rows(result.all())
 
 
 @conv_router.get("/free", response_model=List[ConversationOut])
@@ -322,32 +406,17 @@ async def list_free_conversations(
 ):
     """List conversations without a knowledge base (free chat)."""
     result = await db.execute(
-        select(Conversation)
+        select(Conversation, func.count(Message.id))
+        .outerjoin(Message, Message.conversation_id == Conversation.id)
         .where(
             Conversation.collection_id.is_(None),
             Conversation.is_orphaned == 0,
             Conversation.is_archived == 0,
         )
+        .group_by(Conversation.id)
         .order_by(Conversation.updated_at.desc())
     )
-    conversations = result.scalars().all()
-
-    out = []
-    for conv in conversations:
-        msg_count = await db.scalar(
-            select(func.count(Message.id)).where(Message.conversation_id == conv.id)
-        )
-        out.append(ConversationOut(
-            id=conv.id,
-            collection_id=None,
-            title=conv.title,
-            model_used=conv.model_used,
-            message_count=msg_count or 0,
-            is_orphaned=bool(conv.is_orphaned),
-            created_at=conv.created_at,
-            updated_at=conv.updated_at,
-        ))
-    return out
+    return _build_conversation_rows(result.all())
 
 
 @conv_router.get("/{collection_id}", response_model=List[ConversationOut])
@@ -357,28 +426,13 @@ async def list_conversations(
 ):
     """List conversations for a collection."""
     result = await db.execute(
-        select(Conversation)
+        select(Conversation, func.count(Message.id))
+        .outerjoin(Message, Message.conversation_id == Conversation.id)
         .where(Conversation.collection_id == collection_id, Conversation.is_archived == 0)
+        .group_by(Conversation.id)
         .order_by(Conversation.updated_at.desc())
     )
-    conversations = result.scalars().all()
-
-    out = []
-    for conv in conversations:
-        msg_count = await db.scalar(
-            select(func.count(Message.id)).where(Message.conversation_id == conv.id)
-        )
-        out.append(ConversationOut(
-            id=conv.id,
-            collection_id=conv.collection_id,
-            title=conv.title,
-            model_used=conv.model_used,
-            message_count=msg_count or 0,
-            is_orphaned=bool(conv.is_orphaned),
-            created_at=conv.created_at,
-            updated_at=conv.updated_at,
-        ))
-    return out
+    return _build_conversation_rows(result.all())
 
 
 @conv_router.get("/{collection_id}/{conversation_id}", response_model=List[MessageOut])
@@ -494,6 +548,8 @@ async def regenerate_response_stream(
     message_id: str,
     req: RegenerateRequest,
     db: AsyncSession = Depends(get_db),
+    rag: RAGService = Depends(get_rag_service),
+    llm: LLMService = Depends(get_llm_service),
 ):
     """
     Regenerate the assistant reply for a given user message.
@@ -550,17 +606,23 @@ async def regenerate_response_stream(
 
     user_message_text = user_msg.content
 
+    # Resolve user model config
+    user_llm, user_emb = await _resolve_model_services(db, req.model_config_id)
+    active_llm = user_llm or llm
+
     async def build_generator():
         if is_free:
-            async for event in _free_chat_generator(user_message_text, history, req.mode):
+            async for event in _free_chat_generator(user_message_text, history, req.mode, active_llm):
                 yield event
         else:
-            async for event in rag_service.query_stream(
+            async for event in rag.query_stream(
                 collection_id=collection_id,
                 user_message=user_message_text,
                 history=history,
                 top_k=req.top_k,
                 mode=req.mode,
+                llm_svc=active_llm,
+                emb_svc=user_emb,
             ):
                 yield event
 
@@ -580,20 +642,17 @@ async def regenerate_response_stream(
 async def branch_conversation(
     collection_id: str,
     conversation_id: str,
-    req: dict,
+    req: BranchRequest,
     db: AsyncSession = Depends(get_db),
 ):
     """
     Create a new conversation branched from a specific message.
     Copies all messages up to (and including) the specified message_id
     into a new conversation.
-    Body: { "message_id": "...", "title": "..." }
     """
     is_free = collection_id == "free"
-    message_id = req.get("message_id")
-    title = req.get("title", "分支对话")
-    if not message_id:
-        raise HTTPException(400, "缺少 message_id")
+    message_id = req.message_id
+    title = req.title
 
     conv = await db.get(Conversation, conversation_id)
     if not conv:

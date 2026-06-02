@@ -3,12 +3,23 @@ import axios from 'axios';
 import type {
   Collection, Document, Conversation, Message,
   ChatResponse, SearchResponse, Stats, SystemConfig, UploadResponse,
-  DocumentPreview, TrashData,
+  DocumentPreview, TrashData, SourceItem,
+  UserModelConfig, ModelTestResult, ActiveConfigs,
+  FetchModelsResult, BatchAddResult,
 } from '../types';
 
 const api = axios.create({
   baseURL: '/api',
   timeout: 120000,
+});
+
+// Token 认证：从 localStorage 读取 api_token 并附加到每个请求
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('api_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
 });
 
 // ── Collections ────────────────────────────────────
@@ -60,6 +71,10 @@ export const listDocuments = (collectionId: string) =>
 export const deleteDocument = (docId: string) =>
   api.delete(`/documents/${docId}`);
 
+/** Build the URL for serving the original uploaded file (inline or download). */
+export const getDocumentFileUrl = (documentId: string) =>
+  `/api/documents/${documentId}/file`;
+
 // ── Chat ───────────────────────────────────────────
 export const sendMessage = (data: {
   collection_id: string;
@@ -76,9 +91,10 @@ export const streamMessage = (
     conversation_id?: string;
     top_k?: number;
     mode?: 'socratic' | 'direct';
+    model_config_id?: string;
   },
   onChunk: (text: string) => void,
-  onSources: (sources: any[]) => void,
+  onSources: (sources: SourceItem[]) => void,
   onDone: (convId: string) => void,
   onError: (err: Error) => void,
 ) => {
@@ -86,7 +102,10 @@ export const streamMessage = (
 
   fetch('/api/chat/stream', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(localStorage.getItem('api_token') ? { 'Authorization': `Bearer ${localStorage.getItem('api_token')}` } : {}),
+    },
     body: JSON.stringify(data),
     signal: controller.signal,
   }).then(async (response) => {
@@ -176,16 +195,20 @@ export const regenerateResponse = (
   mode: 'socratic' | 'direct',
   topK: number,
   onChunk: (text: string) => void,
-  onSources: (sources: any[]) => void,
+  onSources: (sources: SourceItem[]) => void,
   onDone: (convId: string) => void,
   onError: (err: Error) => void,
+  modelConfigId?: string,
 ) => {
   const controller = new AbortController();
 
   fetch(`/api/conversations/${collectionId}/${conversationId}/messages/${messageId}/regenerate`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ mode, top_k: topK }),
+    headers: {
+      'Content-Type': 'application/json',
+      ...(localStorage.getItem('api_token') ? { 'Authorization': `Bearer ${localStorage.getItem('api_token')}` } : {}),
+    },
+    body: JSON.stringify({ mode, top_k: topK, model_config_id: modelConfigId }),
     signal: controller.signal,
   }).then(async (response) => {
     if (!response.ok) {
@@ -252,6 +275,65 @@ export const getStats = () =>
 
 export const getConfig = () =>
   api.get<SystemConfig>('/system/config').then(r => r.data);
+
+// ── User Model Configs ─────────────────────────────
+export const getModelConfigs = (type?: 'llm' | 'embedding') =>
+  api.get<UserModelConfig[]>('/user/model-configs', { params: type ? { type } : {} }).then(r => r.data);
+
+export const createModelConfig = (data: {
+  config_type: 'llm' | 'embedding';
+  provider?: string;
+  base_url: string;
+  api_key?: string;
+  model_name: string;
+  is_active?: boolean;
+  extra_params?: Record<string, unknown>;
+}) =>
+  api.post<UserModelConfig>('/user/model-configs', data).then(r => r.data);
+
+export const updateModelConfig = (id: string, data: {
+  provider?: string;
+  base_url?: string;
+  api_key?: string;
+  model_name?: string;
+  is_active?: boolean;
+  extra_params?: Record<string, unknown>;
+}) =>
+  api.put<UserModelConfig>(`/user/model-configs/${id}`, data).then(r => r.data);
+
+export const deleteModelConfig = (id: string) =>
+  api.delete(`/user/model-configs/${id}`);
+
+export const testModelConfig = (data: {
+  config_id?: string;
+  config_type?: 'llm' | 'embedding';
+  provider?: string;
+  base_url?: string;
+  api_key?: string;
+  model_name?: string;
+}) =>
+  api.post<ModelTestResult>('/user/model-configs/test', data).then(r => r.data);
+
+export const getActiveConfigs = () =>
+  api.get<ActiveConfigs>('/user/model-configs/active').then(r => r.data);
+
+export const fetchModels = (data: {
+  config_type: 'llm' | 'embedding';
+  base_url: string;
+  api_key?: string;
+  config_id?: string;
+}) =>
+  api.post<FetchModelsResult>('/user/model-configs/fetch-models', data).then(r => r.data);
+
+export const batchAddModels = (data: {
+  config_type: 'llm' | 'embedding';
+  provider?: string;
+  base_url: string;
+  api_key?: string;
+  models: string[];
+  extra_params?: Record<string, unknown>;
+}) =>
+  api.post<BatchAddResult>('/user/model-configs/batch', data).then(r => r.data);
 
 // ── Archive ────────────────────────────────────────
 export const archiveCollection = (id: string, keepConversations: boolean = true) =>

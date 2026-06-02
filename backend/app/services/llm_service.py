@@ -14,12 +14,19 @@ from app.services.exceptions import (
 class LLMService:
     """Chat completion via OpenAI-compatible API."""
 
-    def __init__(self):
-        self.base_url = settings.llm_api_base.rstrip("/")
-        self.api_key = settings.llm_api_key
-        self.model = settings.llm_model
-        self.max_tokens = settings.llm_max_tokens
-        self.temperature = settings.llm_temperature
+    def __init__(
+        self,
+        base_url: str = None,
+        api_key: str = None,
+        model: str = None,
+        max_tokens: int = None,
+        temperature: float = None,
+    ):
+        self.base_url = (base_url or settings.llm_api_base).rstrip("/")
+        self.api_key = api_key if api_key is not None else settings.llm_api_key
+        self.model = model or settings.llm_model
+        self.max_tokens = max_tokens if max_tokens is not None else settings.llm_max_tokens
+        self.temperature = temperature if temperature is not None else settings.llm_temperature
         self.system_prompt = settings.system_prompt
         self.direct_prompt = settings.direct_prompt
 
@@ -209,3 +216,15 @@ class LLMService:
 
 
 llm_service = LLMService()
+
+
+def create_llm_service_from_config(config: dict) -> LLMService:
+    """从用户模型配置字典创建 LLMService 实例。"""
+    extra = config.get("extra_params", {}) or {}
+    return LLMService(
+        base_url=config.get("base_url"),
+        api_key=config.get("api_key", ""),
+        model=config.get("model_name"),
+        max_tokens=extra.get("max_tokens"),
+        temperature=extra.get("temperature"),
+    )

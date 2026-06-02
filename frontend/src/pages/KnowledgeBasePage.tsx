@@ -4,13 +4,14 @@ import { formatSize } from '../utils/format'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Plus, Upload, Trash2, FileText, X, Loader2, RefreshCw,
-  Database, HardDrive, Pencil, Eye, ChevronLeft, ChevronRight,
+  Database, HardDrive, Pencil, Eye, ChevronLeft, ChevronRight, ExternalLink,
   Check, GripVertical, AlertTriangle,
 } from 'lucide-react'
 import {
   listCollections, createCollection, updateCollection,
   archiveCollection,
   listDocuments, uploadDocumentWithProgress, archiveDocument,
+  getDocumentFileUrl,
 } from '../services/api'
 import type { Collection, Document } from '../types'
 import { IconPicker } from '../components/knowledge/IconPicker'
@@ -340,12 +341,7 @@ export function KnowledgeBasePage() {
 
         {/* Documents */}
         <div className="lg:col-span-2">
-          {!selectedCollectionId ? (
-            <div className="glass-card text-center py-20">
-              <FileText size={48} className="mx-auto mb-4" style={{ color: 'var(--text-dim)' }} />
-              <p style={{ color: 'var(--text-secondary)' }}>选择一个知识库查看文档</p>
-            </div>
-          ) : (
+          {selectedCollectionId && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -529,6 +525,16 @@ export function KnowledgeBasePage() {
                             >
                               <Eye size={16} />
                             </button>
+                            <a
+                              href={getDocumentFileUrl(doc.id)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="btn-ghost p-1 opacity-0 group-hover:opacity-100 transition-all inline-flex"
+                              style={{ color: 'var(--accent-blue)' }}
+                              title="查看原文件"
+                            >
+                              <ExternalLink size={14} />
+                            </a>
                             <span className="text-xs px-2 py-0.5 rounded-full"
                                   style={{ background: 'rgba(34,211,238,0.1)', color: 'var(--accent-cyan)' }}>
                               就绪

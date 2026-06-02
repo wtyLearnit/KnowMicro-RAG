@@ -29,14 +29,22 @@ class Settings(BaseSettings):
     chroma_persist_dir: str = str(_PROJECT_ROOT / "data" / "chroma")
 
     # ── Server ───────────────────────────────────────
-    host: str = "0.0.0.0"
+    host: str = "127.0.0.1"
     port: int = 8000
     cors_origins: str = "http://localhost:5173,http://localhost:3000"
+
+    # ── Security ─────────────────────────────────────
+    secret_key: str = ""  # 必须在 .env 中设置，用于 API Key 加密
+    api_token: str = ""   # API 访问令牌，为空则不校验（仅本地开发用）
 
     # ── Document Processing ──────────────────────────
     chunk_size: int = 800
     chunk_overlap: int = 150
     max_document_size_mb: int = 50
+
+    # ── File Storage ───────────────────────────────────
+    uploads_dir: str = ""
+    # If empty, defaults to <backend>/data/uploads (set in model_post_init below)
 
     # ── Retrieval ────────────────────────────────────
     hybrid_search_enabled: bool = True
@@ -85,12 +93,32 @@ class Settings(BaseSettings):
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
+    def model_post_init(self, __context):
+        """Set defaults that depend on other fields."""
+        if not self.uploads_dir:
+            self.uploads_dir = str(_PROJECT_ROOT / "data" / "uploads")
+        if not self.secret_key:
+            # 自动生成并持久化到文件，确保重启后密钥不变
+            self.secret_key = self._load_or_generate_secret_key()
+
+    @staticmethod
+    def _load_or_generate_secret_key() -> str:
+        import secrets
+        key_file = _PROJECT_ROOT / "data" / ".secret_key"
+        if key_file.exists():
+            return key_file.read_text(encoding="utf-8").strip()
+        key = secrets.token_urlsafe(32)
+        key_file.parent.mkdir(parents=True, exist_ok=True)
+        key_file.write_text(key, encoding="utf-8")
+        return key
+
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",")]
 
 
 settings = Settings()
 
-# Ensure data directory exists
+# Ensure data directories exist
 Path(settings.chroma_persist_dir).parent.mkdir(parents=True, exist_ok=True)
 Path(settings.chroma_persist_dir).mkdir(parents=True, exist_ok=True)
+Path(settings.uploads_dir).mkdir(parents=True, exist_ok=True)

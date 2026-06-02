@@ -18,13 +18,15 @@ import {
   getMessages, archiveConversation, getDocumentPreview,
   streamMessage, renameConversation, editMessage, deleteMessage,
   regenerateResponse, branchConversation,
+  getActiveConfigs,
 } from '../services/api'
 import { useTheme } from '../components/ThemeContext'
-import type { Collection, Conversation, Message, SourceItem, DocumentPreview, DocumentChunk } from '../types'
+import type { Collection, Conversation, Message, SourceItem, DocumentPreview, DocumentChunk, ActiveConfigs } from '../types'
 import { CollectionSelect } from '../components/chat/CollectionSelect'
 import { ChatInput } from '../components/chat/ChatInput'
 import { SourcesPanel } from '../components/chat/SourcesPanel'
 import { DocumentPreviewModal } from '../components/chat/DocumentPreviewModal'
+import { StreamingMessage } from '../components/chat/StreamingMessage'
 
 
 export function ChatPage() {
@@ -85,6 +87,10 @@ export function ChatPage() {
   const [highlightChunkIndex, setHighlightChunkIndex] = useState<number | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
 
+  // ── Model Selection ──
+  const [activeModels, setActiveModels] = useState<ActiveConfigs | null>(null)
+  const [selectedModelId, setSelectedModelId] = useState<string | null>(null)
+
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const isNearBottomRef = useRef(true)
@@ -110,6 +116,7 @@ export function ChatPage() {
   useEffect(() => {
     listCollections().then(setCollections).catch(() => {})
     listOrphanedConversations().then(setOrphanedConversations).catch(() => {})
+    getActiveConfigs().then(setActiveModels).catch(() => {})
   }, [])
 
   // Sync URL with activeCollectionId / isFreeChat
@@ -143,11 +150,22 @@ export function ChatPage() {
     isNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < threshold
   }, [])
 
+  // When true, scroll jumps instantly to bottom (conversation load).
+  // When false, scroll is smooth (streaming content update).
+  const instantScrollRef = useRef(false)
+
   // Auto-scroll to bottom only if the user is already following (near bottom).
-  // If they've scrolled up to read earlier content, don't yank them away.
   useEffect(() => {
-    if (isNearBottomRef.current) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (!isNearBottomRef.current) return
+    const el = messagesEndRef.current
+    if (!el) return
+    if (instantScrollRef.current) {
+      // Conversation just loaded — jump instantly, no animation
+      instantScrollRef.current = false
+      el.scrollIntoView({ behavior: 'instant' })
+    } else {
+      // Streaming content update — smooth animation
+      el.scrollIntoView({ behavior: 'smooth' })
     }
   }, [messages, streamingContent, regenContent])
 
@@ -168,6 +186,7 @@ export function ChatPage() {
     setEditingMsgId(null)
     setRegeneratingMsgId(null)
     isNearBottomRef.current = true
+    instantScrollRef.current = true  // jump instantly, no scrolling animation
     // Check if this conversation is orphaned
     const conv = conversations.find(c => c.id === convId)
       ?? orphanedConversations.find(c => c.id === convId)
@@ -224,6 +243,7 @@ export function ChatPage() {
         conversation_id: activeConvId ?? undefined,
         mode: mode,
         top_k: topK,
+        model_config_id: selectedModelId ?? undefined,
       },
       (chunk) => {
         accumulatedContent += chunk
@@ -263,8 +283,8 @@ export function ChatPage() {
         setStreaming(false)
       },
     )
-    abortRef.current = { abort: () => abort.abort() } as AbortController
-  }, [input, activeCollectionId, isFreeChat, streaming, regeneratingMsgId, isOrphanedConv, mode, topK, activeConvId, conversations, loadConversation, refreshConversationList, setInput, setError, setActiveConvId, setConversations, setStreaming, setStreamingContent, setMessages, setIsOrphanedConv, navigate])
+    abortRef.current = abort
+  }, [input, activeCollectionId, isFreeChat, streaming, regeneratingMsgId, isOrphanedConv, mode, topK, activeConvId, conversations, loadConversation, refreshConversationList, setInput, setError, setActiveConvId, setConversations, setStreaming, setStreamingContent, setMessages, setIsOrphanedConv, navigate, selectedModelId])
 
   // ── Feature 1: Rename handlers ──
   const handleStartRename = (conv: Conversation) => {
@@ -380,8 +400,9 @@ export function ChatPage() {
         // Restore old message on failure
         getMessages(currentScopeId, activeConvId).then(setMessages).catch(() => {})
       },
+      selectedModelId ?? undefined,
     )
-    abortRef.current = { abort: () => abort.abort() } as AbortController
+    abortRef.current = abort
   }
 
   // ── Feature 4: Export handler ──
@@ -1175,48 +1196,12 @@ export function ChatPage() {
                   ))}
                 </AnimatePresence>
 
-                {/* Streaming message (normal send) */}
+                {/* Streaming message — memoized, avoids re-rendering the full message list */}
                 {streaming && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="flex justify-start"
-                  >
-                    <div className="max-w-[80%] glass-panel rounded-2xl rounded-bl-md px-5 py-3.5">
-                      {streamingContent ? (
-                        <div className="prose-content text-sm">
-                          <ReactMarkdown>{streamingContent}</ReactMarkdown>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2" style={{ color: 'var(--text-muted)' }}>
-                          <Loader2 size={16} className="animate-spin" />
-                          <span className="text-sm">思考中...</span>
-                        </div>
-                      )}
-                    </div>
-                  </motion.div>
+                  <StreamingMessage content={streamingContent} label="思考中..." />
                 )}
-
-                {/* Streaming message (regenerate) */}
                 {regeneratingMsgId && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="flex justify-start"
-                  >
-                    <div className="max-w-[80%] glass-panel rounded-2xl rounded-bl-md px-5 py-3.5">
-                      {regenContent ? (
-                        <div className="prose-content text-sm">
-                          <ReactMarkdown>{regenContent}</ReactMarkdown>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2" style={{ color: 'var(--text-muted)' }}>
-                          <Loader2 size={16} className="animate-spin" />
-                          <span className="text-sm">重新生成中...</span>
-                        </div>
-                      )}
-                    </div>
-                  </motion.div>
+                  <StreamingMessage content={regenContent} isRegenerate label="重新生成中..." />
                 )}
 
                 <div ref={messagesEndRef} />
@@ -1256,10 +1241,13 @@ export function ChatPage() {
                 streaming={streaming}
                 regeneratingMsgId={regeneratingMsgId}
                 activeCollection={activeCollection}
+                activeModels={activeModels}
+                selectedModelId={selectedModelId}
                 onModeChange={setMode}
                 onTopKChange={setTopK}
                 onInputChange={setInput}
                 onSend={handleSend}
+                onModelChange={setSelectedModelId}
               />
             </div>
           </Panel>
