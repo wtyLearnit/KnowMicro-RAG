@@ -10,6 +10,7 @@ import {
 import { getStats, getConfig } from '../services/api'
 import { useTheme } from '../components/ThemeContext'
 import { ModelConfigForm } from '../components/settings/ModelConfigForm'
+import { WebSearchConfigForm } from '../components/settings/WebSearchConfigForm'
 import type { Stats, SystemConfig } from '../types'
 
 const themes = [
@@ -239,6 +240,9 @@ export function SettingsPage() {
 
             {/* Embedding 模型配置 */}
             <ModelConfigForm configType="embedding" title="Embedding 大模型" icon="brain" />
+
+            {/* 网络搜索 API 配置 */}
+            <WebSearchConfigForm />
 
             {/* 只读系统信息 */}
             <div className="grid sm:grid-cols-2 gap-4">

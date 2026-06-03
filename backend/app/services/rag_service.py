@@ -274,9 +274,11 @@ class RAGService:
         mode: str = "socratic",
         llm_svc=None,
         emb_svc=None,
+        web_svc=None,
     ) -> Dict[str, Any]:
         """Non-streaming RAG + web search."""
         _llm = llm_svc or llm_service
+        _web = web_svc or web_search_service
 
         # Step 0: Query rewriting
         search_query = user_message
@@ -286,7 +288,7 @@ class RAGService:
         # Step 1: Parallel — KB retrieval + web search
         kb_results, web_response = await asyncio.gather(
             self.retrieve(collection_id, search_query, top_k, emb_svc=emb_svc),
-            web_search_service.search(search_query),
+            _web.search(search_query),
         )
 
         web_results = web_response.results if not web_response.error else []
@@ -319,9 +321,11 @@ class RAGService:
         mode: str = "socratic",
         llm_svc=None,
         emb_svc=None,
+        web_svc=None,
     ) -> AsyncIterator[Dict[str, Any]]:
         """Streaming RAG + web search."""
         _llm = llm_svc or llm_service
+        _web = web_svc or web_search_service
 
         # Step 0: Query rewriting
         search_query = user_message
@@ -331,7 +335,7 @@ class RAGService:
         # Step 1: Parallel — KB retrieval + web search
         kb_results, web_response = await asyncio.gather(
             self.retrieve(collection_id, search_query, top_k, emb_svc=emb_svc),
-            web_search_service.search(search_query),
+            _web.search(search_query),
         )
 
         web_results = web_response.results if not web_response.error else []

@@ -60,6 +60,9 @@ class Settings(BaseSettings):
     web_search_backend: str = "duckduckgo"  # duckduckgo | tavily | brave | serper
     web_search_max_results: int = 5
     web_search_timeout: int = 20  # seconds (ddgs may need >10s on first call)
+    # ddgs 是元搜索聚合器，默认会同时查 Google/Brave/DuckDuckGo/Wikipedia 等引擎，
+    # 这些在国内基本被墙或限流导致整体超时；实测仅 yandex 稳定可用（约 4s）。
+    web_search_ddgs_backend: str = "yandex"
     tavily_api_key: str = ""
     brave_api_key: str = ""
     serper_api_key: str = ""

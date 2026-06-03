@@ -91,3 +91,64 @@ const PROVIDER_MAP = Object.fromEntries(PROVIDERS.map(p => [p.id, p]))
 export function getProvider(id: string): ProviderDef {
   return PROVIDER_MAP[id] || PROVIDERS[PROVIDERS.length - 1]
 }
+
+// ── 网络搜索 API 供应商 ──────────────────────────────
+export const WEB_SEARCH_PROVIDERS: ProviderDef[] = [
+  {
+    id: 'duckduckgo',
+    name: 'DuckDuckGo（免费）',
+    icon: '🦆',
+    base_url: '',
+    requires_api_key: false,
+    api_key_label: null,
+    api_key_placeholder: null,
+    supports_model_list: false,
+  },
+  {
+    id: 'tavily',
+    name: 'Tavily',
+    icon: '🟢',
+    base_url: 'https://api.tavily.com',
+    requires_api_key: true,
+    api_key_label: 'API Key',
+    api_key_placeholder: 'tvly-...',
+    supports_model_list: false,
+  },
+  {
+    id: 'brave',
+    name: 'Brave Search',
+    icon: '🦁',
+    base_url: 'https://api.search.brave.com',
+    requires_api_key: true,
+    api_key_label: 'Subscription Token',
+    api_key_placeholder: '输入 Brave API Key',
+    supports_model_list: false,
+  },
+  {
+    id: 'serper',
+    name: 'Serper（Google）',
+    icon: '🔍',
+    base_url: 'https://google.serper.dev',
+    requires_api_key: true,
+    api_key_label: 'API Key',
+    api_key_placeholder: '输入 Serper API Key',
+    supports_model_list: false,
+  },
+  {
+    id: 'custom',
+    name: '自定义',
+    icon: '⚙️',
+    base_url: '',
+    requires_api_key: true,
+    api_key_label: 'API Key',
+    api_key_placeholder: '输入 API Key',
+    supports_model_list: false,
+  },
+]
+
+const WEB_SEARCH_PROVIDER_MAP = Object.fromEntries(WEB_SEARCH_PROVIDERS.map(p => [p.id, p]))
+
+/** 根据 provider id 获取网络搜索供应商预设，未知 id 返回免费 DuckDuckGo */
+export function getWebSearchProvider(id: string): ProviderDef {
+  return WEB_SEARCH_PROVIDER_MAP[id] || WEB_SEARCH_PROVIDERS[0]
+}

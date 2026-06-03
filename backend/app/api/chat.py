@@ -86,6 +86,31 @@ async def _resolve_model_services(
 
     return llm_svc, emb_svc
 
+
+async def _resolve_web_search_service(db: AsyncSession):
+    """解析当前激活的网络搜索配置，返回配置好的 WebSearchService。
+
+    未配置时返回 None，调用方回退到模块级默认实例（免费 ddgs + yandex）。
+    """
+    from app.services.web_search_service import create_web_search_service_from_config
+
+    result = await db.execute(
+        select(UserModelConfig).where(
+            UserModelConfig.config_type == "web_search",
+            UserModelConfig.is_active == 1,
+        )
+    )
+    config = result.scalar_one_or_none()
+    if not config:
+        return None
+
+    return create_web_search_service_from_config({
+        "provider": config.provider,
+        "base_url": config.base_url,
+        "api_key": decrypt_api_key(config.api_key) if config.api_key else "",
+        "extra_params": config.extra_params or {},
+    })
+
 # ── Shared Helpers ───────────────────────────────────
 
 
@@ -153,6 +178,7 @@ async def _free_chat_generator(
     mode: str,
     llm: LLMService,
     web_search: bool = False,
+    web_svc=None,
 ) -> AsyncIterator[Dict[str, Any]]:
     """Adapt LLM chat_stream output to unified {type, content/sources} event dicts."""
     context = ""
@@ -161,7 +187,8 @@ async def _free_chat_generator(
 
     if web_search:
         from app.services.web_search_service import web_search_service
-        ws_resp = await web_search_service.search(user_message)
+        _web = web_svc or web_search_service
+        ws_resp = await _web.search(user_message)
         if ws_resp.results:
             has_web = True
             from app.services.rag_service import rag_service as _rag
@@ -295,7 +322,8 @@ async def chat(
     if is_free:
         if req.web_search:
             from app.services.web_search_service import web_search_service as _wsvc
-            ws_resp = await _wsvc.search(req.message)
+            web_svc = await _resolve_web_search_service(db) or _wsvc
+            ws_resp = await web_svc.search(req.message)
             ctx = rag._format_web_context(ws_resp.results) if ws_resp.results else ""
             response = await active_llm.chat(req.message, history, context=ctx, mode=req.mode, has_web_results=bool(ws_resp.results))
             sources = rag._build_web_source_items(ws_resp.results) if ws_resp.results else []
@@ -311,6 +339,7 @@ async def chat(
             mode=req.mode,
             llm_svc=active_llm,
             emb_svc=user_emb,
+            web_svc=await _resolve_web_search_service(db),
         )
         sources = response.get("sources", [])
     else:
@@ -363,6 +392,7 @@ async def chat_stream(
     # Resolve user model config (fallback to system defaults)
     user_llm, user_emb = await _resolve_model_services(db, req.model_config_id)
     active_llm = user_llm or llm
+    web_svc = await _resolve_web_search_service(db) if req.web_search else None
 
     conversation_id = conversation.id
     collection_id = req.collection_id
@@ -372,7 +402,7 @@ async def chat_stream(
 
     async def build_generator():
         if is_free:
-            async for event in _free_chat_generator(user_message, history, mode, active_llm, web_search=req.web_search):
+            async for event in _free_chat_generator(user_message, history, mode, active_llm, web_search=req.web_search, web_svc=web_svc):
                 yield event
         elif req.web_search:
             async for event in rag.query_stream_with_web(
@@ -383,6 +413,7 @@ async def chat_stream(
                 mode=mode,
                 llm_svc=active_llm,
                 emb_svc=user_emb,
+                web_svc=web_svc,
             ):
                 yield event
         else:
@@ -653,10 +684,11 @@ async def regenerate_response_stream(
     # Resolve user model config
     user_llm, user_emb = await _resolve_model_services(db, req.model_config_id)
     active_llm = user_llm or llm
+    web_svc = await _resolve_web_search_service(db) if req.web_search else None
 
     async def build_generator():
         if is_free:
-            async for event in _free_chat_generator(user_message_text, history, req.mode, active_llm, web_search=req.web_search):
+            async for event in _free_chat_generator(user_message_text, history, req.mode, active_llm, web_search=req.web_search, web_svc=web_svc):
                 yield event
         elif req.web_search:
             async for event in rag.query_stream_with_web(
@@ -667,6 +699,7 @@ async def regenerate_response_stream(
                 mode=req.mode,
                 llm_svc=active_llm,
                 emb_svc=user_emb,
+                web_svc=web_svc,
             ):
                 yield event
         else:

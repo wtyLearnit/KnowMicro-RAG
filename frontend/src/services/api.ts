@@ -5,7 +5,7 @@ import type {
   ChatResponse, SearchResponse, Stats, SystemConfig, UploadResponse,
   DocumentPreview, TrashData, SourceItem,
   UserModelConfig, ModelTestResult, ActiveConfigs,
-  FetchModelsResult, BatchAddResult,
+  FetchModelsResult, BatchAddResult, WebSearchTestResult,
 } from '../types';
 
 const api = axios.create({
@@ -279,11 +279,13 @@ export const getConfig = () =>
   api.get<SystemConfig>('/system/config').then(r => r.data);
 
 // ── User Model Configs ─────────────────────────────
-export const getModelConfigs = (type?: 'llm' | 'embedding') =>
+type ConfigType = 'llm' | 'embedding' | 'web_search';
+
+export const getModelConfigs = (type?: ConfigType) =>
   api.get<UserModelConfig[]>('/user/model-configs', { params: type ? { type } : {} }).then(r => r.data);
 
 export const createModelConfig = (data: {
-  config_type: 'llm' | 'embedding';
+  config_type: ConfigType;
   provider?: string;
   base_url: string;
   api_key?: string;
@@ -328,7 +330,7 @@ export const fetchModels = (data: {
   api.post<FetchModelsResult>('/user/model-configs/fetch-models', data).then(r => r.data);
 
 export const batchAddModels = (data: {
-  config_type: 'llm' | 'embedding';
+  config_type: ConfigType;
   provider?: string;
   base_url: string;
   api_key?: string;
@@ -336,6 +338,15 @@ export const batchAddModels = (data: {
   extra_params?: Record<string, unknown>;
 }) =>
   api.post<BatchAddResult>('/user/model-configs/batch', data).then(r => r.data);
+
+export const testWebSearchConfig = (data: {
+  config_id?: string;
+  provider?: string;
+  base_url?: string;
+  api_key?: string;
+  protocol?: string;
+}) =>
+  api.post<WebSearchTestResult>('/user/model-configs/test-web-search', data).then(r => r.data);
 
 // ── Archive ────────────────────────────────────────
 export const archiveCollection = (id: string, keepConversations: boolean = true) =>

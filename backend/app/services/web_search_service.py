@@ -31,10 +31,25 @@ class WebSearchResponse:
 class WebSearchService:
     """Thin wrapper over pluggable web search backends."""
 
-    def __init__(self):
-        self._backend = settings.web_search_backend
-        self._max_results = settings.web_search_max_results
-        self._timeout = settings.web_search_timeout
+    def __init__(
+        self,
+        backend: str | None = None,
+        api_key: str | None = None,
+        max_results: int | None = None,
+        timeout: int | None = None,
+        ddgs_backend: str | None = None,
+        custom_protocol: str | None = None,   # 自定义供应商的 API 协议 (tavily/serper/brave)
+        base_url_override: str | None = None,  # 自定义供应商的搜索端点 URL
+    ):
+        self._backend = backend or settings.web_search_backend
+        self._api_key = api_key or ""
+        self._max_results = max_results or settings.web_search_max_results
+        self._timeout = timeout or settings.web_search_timeout
+        # 免费 ddgs 路径使用的元搜索引擎（默认 yandex，国内唯一稳定可用）
+        self._ddgs_backend = ddgs_backend or settings.web_search_ddgs_backend
+        # 自定义供应商：协议类型 + 端点 URL
+        self._custom_protocol = custom_protocol or "tavily"
+        self._base_url_override = base_url_override or ""
 
     async def search(self, query: str, num_results: int | None = None) -> WebSearchResponse:
         """
@@ -57,6 +72,18 @@ class WebSearchService:
             return WebSearchResponse(backend=self._backend, error="搜索服务暂时不可用")
 
     async def _do_search(self, query: str, num: int) -> List[WebSearchResult]:
+        backend = self._backend
+        # 自定义供应商按协议类型分派到对应的 API 方法
+        if backend == "custom":
+            protocol = self._custom_protocol
+            ep = self._base_url_override
+            if protocol == "serper":
+                return await self._search_serper(query, num, endpoint=ep)
+            elif protocol == "brave":
+                return await self._search_brave(query, num, endpoint=ep)
+            else:
+                return await self._search_tavily(query, num, endpoint=ep)
+
         if self._backend == "tavily":
             return await self._search_tavily(query, num)
         elif self._backend == "brave":
@@ -75,7 +102,7 @@ class WebSearchService:
         def _sync():
             results: list[WebSearchResult] = []
             with DDGS() as ddgs:
-                for r in ddgs.text(query, max_results=num):
+                for r in ddgs.text(query, max_results=num, backend=self._ddgs_backend):
                     results.append(WebSearchResult(
                         title=r.get("title", ""),
                         url=r.get("href", ""),
@@ -86,8 +113,8 @@ class WebSearchService:
         return await loop.run_in_executor(None, _sync)
 
     # ── Tavily (AI-optimised) ────────────────────────
-    async def _search_tavily(self, query: str, num: int) -> List[WebSearchResult]:
-        api_key = settings.tavily_api_key
+    async def _search_tavily(self, query: str, num: int, endpoint: str = "") -> List[WebSearchResult]:
+        api_key = self._api_key or settings.tavily_api_key
         if not api_key:
             logger.warning("Tavily API key not configured, falling back to DuckDuckGo")
             return await self._search_duckduckgo(query, num)
@@ -95,7 +122,7 @@ class WebSearchService:
         import httpx
         async with httpx.AsyncClient() as client:
             resp = await client.post(
-                "https://api.tavily.com/search",
+                endpoint or "https://api.tavily.com/search",
                 json={
                     "api_key": api_key,
                     "query": query,
@@ -116,8 +143,8 @@ class WebSearchService:
             ]
 
     # ── Brave Search ─────────────────────────────────
-    async def _search_brave(self, query: str, num: int) -> List[WebSearchResult]:
-        api_key = settings.brave_api_key
+    async def _search_brave(self, query: str, num: int, endpoint: str = "") -> List[WebSearchResult]:
+        api_key = self._api_key or settings.brave_api_key
         if not api_key:
             logger.warning("Brave API key not configured, falling back to DuckDuckGo")
             return await self._search_duckduckgo(query, num)
@@ -125,7 +152,7 @@ class WebSearchService:
         import httpx
         async with httpx.AsyncClient() as client:
             resp = await client.get(
-                "https://api.search.brave.com/res/v1/web/search",
+                endpoint or "https://api.search.brave.com/res/v1/web/search",
                 params={"q": query, "count": min(num, 20)},
                 headers={
                     "Accept": "application/json",
@@ -146,8 +173,8 @@ class WebSearchService:
             return results
 
     # ── Serper (Google results) ──────────────────────
-    async def _search_serper(self, query: str, num: int) -> List[WebSearchResult]:
-        api_key = settings.serper_api_key
+    async def _search_serper(self, query: str, num: int, endpoint: str = "") -> List[WebSearchResult]:
+        api_key = self._api_key or settings.serper_api_key
         if not api_key:
             logger.warning("Serper API key not configured, falling back to DuckDuckGo")
             return await self._search_duckduckgo(query, num)
@@ -155,7 +182,7 @@ class WebSearchService:
         import httpx
         async with httpx.AsyncClient() as client:
             resp = await client.post(
-                "https://google.serper.dev/search",
+                endpoint or "https://google.serper.dev/search",
                 json={"q": query, "num": num},
                 headers={"X-API-KEY": api_key},
                 timeout=self._timeout,
@@ -173,3 +200,20 @@ class WebSearchService:
 
 
 web_search_service = WebSearchService()
+
+
+def create_web_search_service_from_config(config: dict) -> WebSearchService:
+    """从用户配置字典创建 WebSearchService 实例。
+
+    config 形如 UserModelConfig(config_type="web_search") 的解析结果：
+    provider 决定后端，api_key 已解密，extra_params 含 max_results/timeout。
+    """
+    extra = config.get("extra_params", {}) or {}
+    return WebSearchService(
+        backend=config.get("provider"),
+        api_key=config.get("api_key", ""),
+        max_results=extra.get("max_results"),
+        timeout=extra.get("timeout"),
+        custom_protocol=extra.get("protocol"),
+        base_url_override=config.get("base_url") if config.get("provider") == "custom" else None,
+    )

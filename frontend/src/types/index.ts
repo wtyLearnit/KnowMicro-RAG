@@ -167,7 +167,7 @@ export interface TrashData {
 // ── User Model Config ────────────────────────────────
 export interface UserModelConfig {
   id: string;
-  config_type: 'llm' | 'embedding';
+  config_type: 'llm' | 'embedding' | 'web_search';
   provider: string;
   base_url: string;
   model_name: string;
@@ -206,4 +206,12 @@ export interface BatchAddResult {
   created: number;
   skipped: number;
   models: string[];
+}
+
+export interface WebSearchTestResult {
+  success: boolean;
+  latency_ms: number;
+  result_count: number;
+  message: string;
+  error?: string;
 }

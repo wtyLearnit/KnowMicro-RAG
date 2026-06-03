@@ -252,7 +252,7 @@ class TrashCounts(BaseModel):
 
 # ── User Model Config ────────────────────────────────
 class UserModelConfigCreate(BaseModel):
-    config_type: str = Field(..., pattern="^(llm|embedding)$")
+    config_type: str = Field(..., pattern="^(llm|embedding|web_search)$")
     provider: str = Field(default="custom", max_length=32)
     base_url: str = Field(..., min_length=1, max_length=512)
     api_key: str = ""
@@ -341,3 +341,21 @@ class BatchAddResponse(BaseModel):
     created: int
     skipped: int
     models: List[str] = []
+
+
+# ── Web Search Config Test ───────────────────────────
+class WebSearchTestRequest(BaseModel):
+    """测试网络搜索 API 连接：可引用已保存的配置，或直接传入参数。"""
+    config_id: Optional[str] = None
+    provider: Optional[str] = None  # tavily | brave | serper | duckduckgo | custom
+    base_url: Optional[str] = None
+    api_key: Optional[str] = None
+    protocol: Optional[str] = None  # 自定义供应商的协议类型 (tavily/serper/brave)
+
+
+class WebSearchTestResponse(BaseModel):
+    success: bool
+    latency_ms: int = 0
+    result_count: int = 0
+    message: str = ""
+    error: Optional[str] = None

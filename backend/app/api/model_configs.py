@@ -15,6 +15,7 @@ from app.schemas.schemas import (
     ModelTestRequest, ModelTestResponse, ActiveConfigsResponse,
     FetchModelsRequest, FetchModelsResponse, ModelInfo,
     BatchAddRequest, BatchAddResponse,
+    WebSearchTestRequest, WebSearchTestResponse,
 )
 from app.utils.crypto import encrypt_api_key, decrypt_api_key
 
@@ -313,3 +314,52 @@ async def batch_add_models(
 
     await db.commit()
     return BatchAddResponse(created=len(created_models), skipped=skipped_count, models=created_models)
+
+
+@router.post("/test-web-search", response_model=WebSearchTestResponse)
+async def test_web_search_connection(
+    req: WebSearchTestRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """测试网络搜索 API：用配置构建 WebSearchService 跑一次真实搜索。"""
+    from app.services.web_search_service import create_web_search_service_from_config
+
+    extra: dict = {"timeout": 15}
+
+    if req.config_id:
+        config = await db.get(UserModelConfig, req.config_id)
+        if not config:
+            raise HTTPException(404, "配置不存在")
+        provider = config.provider
+        base_url = config.base_url
+        api_key = _plain_key(config)
+        extra = {**extra, **(config.extra_params or {})}
+    else:
+        if not req.provider:
+            raise HTTPException(400, "缺少必要参数：provider")
+        provider = req.provider
+        base_url = req.base_url or ""
+        api_key = req.api_key or ""
+        if req.protocol:
+            extra["protocol"] = req.protocol
+
+    svc = create_web_search_service_from_config({
+        "provider": provider,
+        "base_url": base_url,
+        "api_key": api_key,
+        "extra_params": extra,
+    })
+
+    start = time.time()
+    resp = await svc.search("hello world", num_results=1)
+    latency = int((time.time() - start) * 1000)
+
+    if resp.error:
+        return WebSearchTestResponse(
+            success=False, latency_ms=latency, result_count=0,
+            message="连接失败", error=resp.error,
+        )
+    return WebSearchTestResponse(
+        success=True, latency_ms=latency, result_count=len(resp.results),
+        message=f"连接成功，返回 {len(resp.results)} 条结果 ({latency}ms)",
+    )
