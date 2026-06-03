@@ -113,7 +113,7 @@ platos-window/
 │       │   └── schemas.py               # Pydantic 模型（请求/响应/回收站）
 │       └── services/
 │           ├── rag_service.py           # RAG 编排：混合检索 + RRF 融合 + 重排序
-│           ├── llm_service.py           # LLM 调用：对话生成 + 查询重写
+│           ├── llm_service.py           # LLM 调用：回复生成 + 查询重写
 │           ├── embedding_service.py      # Embedding 调用（批处理 + 重试）
 │           ├── document_service.py       # 文档解析（PDF/DOCX/TXT/MD）
 │           ├── chunking_service.py       # 分块策略（递归/Markdown/语义）
@@ -457,8 +457,8 @@ RRF_score(d) = Σ (1 / (k + rank_i(d)))
 
 | 方法 | 路径 | 请求体 / 参数 | 说明 |
 |---|---|---|---|
-| `POST` | `/api/chat` | `{collection_id?, message, conversation_id?, top_k?, mode?}` | 非流式对话 |
-| `POST` | `/api/chat/stream` | 同上 | SSE 流式对话 |
+| `POST` | `/api/chat` | `{collection_id?, message, conversation_id?, top_k?, mode?}` | 非流式问答 |
+| `POST` | `/api/chat/stream` | 同上 | SSE 流式问答 |
 | `GET` | `/api/conversations/{collection_id}` | — | 对话列表 |
 | `GET` | `/api/conversations/free` | — | 自由对话列表 |
 | `GET` | `/api/conversations/orphaned` | — | 孤立对话列表 |

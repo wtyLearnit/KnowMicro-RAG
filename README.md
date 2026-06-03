@@ -226,7 +226,7 @@ docker compose up -d
 所有配置通过环境变量管理，见 `backend/.env.example`：
 
 ```env
-# LLM（对话模型）
+# LLM（问答模型）
 LLM_API_BASE=https://api.openai.com/v1
 LLM_API_KEY=sk-your-key-here
 LLM_MODEL=gpt-4o-mini
