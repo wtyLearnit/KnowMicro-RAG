@@ -59,6 +59,9 @@ export function ChatPage() {
     const saved = localStorage.getItem('chatTopK')
     return saved ? parseInt(saved, 10) : 5
   })
+  const [webSearchEnabled, setWebSearchEnabled] = useState<boolean>(() => {
+    return localStorage.getItem('chatWebSearch') !== 'false'
+  })
   const [showTopKPanel, setShowTopKPanel] = useState(false)
   const [isOrphanedConv, setIsOrphanedConv] = useState(false)
 
@@ -244,6 +247,7 @@ export function ChatPage() {
         mode: mode,
         top_k: topK,
         model_config_id: selectedModelId ?? undefined,
+        web_search: webSearchEnabled,
       },
       (chunk) => {
         accumulatedContent += chunk
@@ -385,23 +389,28 @@ export function ChatPage() {
             sources: accumulatedSources,
             created_at: new Date().toISOString(),
           }
-          setMessages(prev => [...prev, newAssistantMsg])
+          setMessages(prev => {
+            // Remove old assistant message for this scope
+            const filtered = prev.filter(m => !(m.role === 'assistant' && m.id.startsWith('regen-' + currentScopeId)))
+            return [...filtered, newAssistantMsg]
+          })
+          setRegeneratingMsgId(null)
+          setRegenContent('')
+          setRegenSources([])
         }
+        setStreaming(false)
+      },
+      (err) => {
+        setError(err.message)
         setRegeneratingMsgId(null)
         setRegenContent('')
         setRegenSources([])
-        // Refresh from server for real IDs
-        getMessages(currentScopeId, convId).then(setMessages).catch(() => {})
-      },
-      (err) => {
-        console.error('Regenerate error:', err)
-        setError(err?.message || '重新生成失败')
-        setRegeneratingMsgId(null)
-        // Restore old message on failure
-        getMessages(currentScopeId, activeConvId).then(setMessages).catch(() => {})
+        setStreaming(false)
       },
       selectedModelId ?? undefined,
+      webSearchEnabled,
     )
+
     abortRef.current = abort
   }
 
@@ -1248,6 +1257,8 @@ export function ChatPage() {
                 onInputChange={setInput}
                 onSend={handleSend}
                 onModelChange={setSelectedModelId}
+                webSearchEnabled={webSearchEnabled}
+                onWebSearchChange={setWebSearchEnabled}
               />
             </div>
           </Panel>

@@ -2,6 +2,7 @@
 苏格拉底之窗 - RAG Service
 Orchestrates: query rewrite → hybrid retrieval → rerank → generation.
 """
+import asyncio
 import logging
 from typing import List, Dict, Any, AsyncIterator
 
@@ -13,6 +14,7 @@ from app.services.embedding_service import embedding_service
 from app.services.llm_service import llm_service
 from app.services.bm25_service import BM25Service, rrf_fusion
 from app.services.reranker_service import RerankerService
+from app.services.web_search_service import web_search_service, WebSearchResult
 
 logger = logging.getLogger("Socratess_window")
 
@@ -231,6 +233,122 @@ class RAGService:
                 parts.append(f"## {doc_name}\n{text}")
 
         return "\n\n".join(parts)
+
+    # ── Web Search Integration ──────────────────────
+    @staticmethod
+    def _format_web_context(web_results: List[WebSearchResult]) -> str:
+        """Format web search results into a context block for the LLM."""
+        if not web_results:
+            return ""
+        parts = [
+            "## 🌐 网络搜索结果（实时检索）",
+            "以下是从互联网实时搜索到的最新信息，请优先参考这些内容回答用户问题：",
+            "",
+        ]
+        for i, r in enumerate(web_results, 1):
+            parts.append(f"{i}. **{r.title}**\n   {r.snippet}\n   🔗 {r.url}")
+        return "\n".join(parts)
+
+    @staticmethod
+    def _build_web_source_items(web_results: List[WebSearchResult]) -> List[Dict[str, Any]]:
+        """Convert web results to source dicts (same shape as KB sources)."""
+        return [
+            {
+                "doc_id": f"web_{i}",
+                "doc_name": r.title,
+                "chunk_text": r.snippet,
+                "score": 0.0,
+                "chunk_index": 0,
+                "source_type": "web",
+                "url": r.url,
+            }
+            for i, r in enumerate(web_results)
+        ]
+
+    async def query_with_web(
+        self,
+        collection_id: str,
+        user_message: str,
+        history: List[Dict[str, str]],
+        top_k: int = 5,
+        mode: str = "socratic",
+        llm_svc=None,
+        emb_svc=None,
+    ) -> Dict[str, Any]:
+        """Non-streaming RAG + web search."""
+        _llm = llm_svc or llm_service
+
+        # Step 0: Query rewriting
+        search_query = user_message
+        if settings.query_rewrite_enabled and history:
+            search_query = await _llm.rewrite_query(user_message, history)
+
+        # Step 1: Parallel — KB retrieval + web search
+        kb_results, web_response = await asyncio.gather(
+            self.retrieve(collection_id, search_query, top_k, emb_svc=emb_svc),
+            web_search_service.search(search_query),
+        )
+
+        web_results = web_response.results if not web_response.error else []
+
+        # Step 2: Build combined context
+        kb_context = self.build_context(kb_results, top_k)
+        web_context = self._format_web_context(web_results)
+        combined = kb_context
+        if web_context:
+            combined += "\n\n" + web_context
+
+        has_web = bool(web_results)
+        response = await _llm.chat(user_message, history, combined, mode, has_web_results=has_web)
+
+        # Merge sources
+        all_sources = self._build_source_items(kb_results) + self._build_web_source_items(web_results)
+
+        return {
+            "content": response["content"],
+            "sources": all_sources,
+            "usage": response.get("usage", {}),
+        }
+
+    async def query_stream_with_web(
+        self,
+        collection_id: str,
+        user_message: str,
+        history: List[Dict[str, str]],
+        top_k: int = 5,
+        mode: str = "socratic",
+        llm_svc=None,
+        emb_svc=None,
+    ) -> AsyncIterator[Dict[str, Any]]:
+        """Streaming RAG + web search."""
+        _llm = llm_svc or llm_service
+
+        # Step 0: Query rewriting
+        search_query = user_message
+        if settings.query_rewrite_enabled:
+            search_query = await _llm.rewrite_query(user_message, history)
+
+        # Step 1: Parallel — KB retrieval + web search
+        kb_results, web_response = await asyncio.gather(
+            self.retrieve(collection_id, search_query, top_k, emb_svc=emb_svc),
+            web_search_service.search(search_query),
+        )
+
+        web_results = web_response.results if not web_response.error else []
+
+        # Step 2: Build combined context
+        kb_context = self.build_context(kb_results, top_k)
+        web_context = self._format_web_context(web_results)
+        combined = kb_context
+        if web_context:
+            combined += "\n\n" + web_context
+
+        has_web = bool(web_results)
+        async for chunk in _llm.chat_stream(user_message, history, combined, mode, has_web_results=has_web):
+            yield {"type": "chunk", "content": chunk}
+
+        all_sources = self._build_source_items(kb_results) + self._build_web_source_items(web_results)
+        yield {"type": "sources", "sources": all_sources}
 
     # ── Helpers ─────────────────────────────────────
     def _build_source_items(self, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

@@ -11,6 +11,24 @@ from app.services.exceptions import (
 )
 
 
+# Appended to system prompt when web search results are present
+_WEB_SEARCH_RULES = """
+## 🌐 网络搜索结果使用规则（非常重要）
+
+你的上下文中包含「网络搜索结果」——这是系统刚刚从互联网实时检索到的信息，**时效性远优于你的训练数据**。
+
+### 你必须遵守的规则：
+1. **优先使用网络搜索结果**：当用户的问题涉及最新动态、新闻、产品发布、实时数据等时效性内容时，必须以网络搜索结果为主要依据来回答。你的训练数据可能已过时。
+2. **明确告知来源**：使用网络信息时，在回答中自然地提及信息来源，并在末尾列出参考链接。
+3. **如果没有相关知识库**：当上下文只有网络搜索结果（没有"📚 知识库"），请完全基于网络搜索结果作答。
+4. **知识库与网络的优先级**：
+   - "📚 知识库"（如有）是用户提供的权威资料，涉及专业/内部知识时优先采信
+   - "🌐 网络搜索"用于补充最新信息或知识库未覆盖的内容
+   - 当两者存在矛盾且网络信息明显更新，以网络信息为准并说明时效差异
+5. **不要忽略网络结果**：即使用户没有明确说"搜索"，只要上下文中有网络搜索结果，就应该充分利用它们。
+"""
+
+
 class LLMService:
     """Chat completion via OpenAI-compatible API."""
 
@@ -36,9 +54,15 @@ class LLMService:
         history: List[Dict[str, str]],
         context: str = "",
         mode: str = "socratic",
+        has_web_results: bool = False,
     ) -> List[Dict[str, str]]:
         """Build the message list with system prompt, context, and history."""
         prompt = self.system_prompt if mode == "socratic" else self.direct_prompt
+
+        # Append web search handling rules when web results are present
+        if has_web_results:
+            prompt += _WEB_SEARCH_RULES
+
         messages = [{"role": "system", "content": prompt}]
 
         if context:
@@ -60,9 +84,10 @@ class LLMService:
         history: List[Dict[str, str]],
         context: str = "",
         mode: str = "socratic",
+        has_web_results: bool = False,
     ) -> Dict[str, Any]:
         """Non-streaming chat completion."""
-        messages = self._build_messages(user_message, history, context, mode)
+        messages = self._build_messages(user_message, history, context, mode, has_web_results)
 
         try:
             async with httpx.AsyncClient(timeout=120.0, trust_env=False) as client:
@@ -112,9 +137,10 @@ class LLMService:
         history: List[Dict[str, str]],
         context: str = "",
         mode: str = "socratic",
+        has_web_results: bool = False,
     ) -> AsyncIterator[str]:
         """Streaming chat completion. Yields content chunks."""
-        messages = self._build_messages(user_message, history, context, mode)
+        messages = self._build_messages(user_message, history, context, mode, has_web_results)
 
         try:
             async with httpx.AsyncClient(timeout=120.0, trust_env=False) as client:

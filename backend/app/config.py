@@ -56,6 +56,14 @@ class Settings(BaseSettings):
     query_rewrite_enabled: bool = True
     retrieval_top_k: int = 20
 
+    # ── Web Search ────────────────────────────────────
+    web_search_backend: str = "duckduckgo"  # duckduckgo | tavily | brave | serper
+    web_search_max_results: int = 5
+    web_search_timeout: int = 20  # seconds (ddgs may need >10s on first call)
+    tavily_api_key: str = ""
+    brave_api_key: str = ""
+    serper_api_key: str = ""
+
     # ── System Prompt ────────────────────────────────
     system_prompt: str = (
         "你是「苏格拉底」，一位生活在数字时代的古希腊哲人导师。"

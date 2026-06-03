@@ -152,13 +152,28 @@ async def _free_chat_generator(
     history: List[Dict[str, str]],
     mode: str,
     llm: LLMService,
+    web_search: bool = False,
 ) -> AsyncIterator[Dict[str, Any]]:
     """Adapt LLM chat_stream output to unified {type, content/sources} event dicts."""
+    context = ""
+    sources: List[Dict[str, Any]] = []
+    has_web = False
+
+    if web_search:
+        from app.services.web_search_service import web_search_service
+        ws_resp = await web_search_service.search(user_message)
+        if ws_resp.results:
+            has_web = True
+            from app.services.rag_service import rag_service as _rag
+            context = _rag._format_web_context(ws_resp.results)
+            sources = _rag._build_web_source_items(ws_resp.results)
+
     async for chunk in llm.chat_stream(
-        user_message=user_message, history=history, context="", mode=mode,
+        user_message=user_message, history=history, context=context, mode=mode,
+        has_web_results=has_web,
     ):
         yield {"type": "chunk", "content": chunk}
-    yield {"type": "sources", "sources": []}
+    yield {"type": "sources", "sources": sources}
 
 
 async def _sse_wrap(
@@ -278,8 +293,26 @@ async def chat(
 
     # Run pipeline
     if is_free:
-        response = await active_llm.chat(req.message, history, context="", mode=req.mode)
-        sources = []
+        if req.web_search:
+            from app.services.web_search_service import web_search_service as _wsvc
+            ws_resp = await _wsvc.search(req.message)
+            ctx = rag._format_web_context(ws_resp.results) if ws_resp.results else ""
+            response = await active_llm.chat(req.message, history, context=ctx, mode=req.mode, has_web_results=bool(ws_resp.results))
+            sources = rag._build_web_source_items(ws_resp.results) if ws_resp.results else []
+        else:
+            response = await active_llm.chat(req.message, history, context="", mode=req.mode)
+            sources = []
+    elif req.web_search:
+        response = await rag.query_with_web(
+            collection_id=req.collection_id,
+            user_message=req.message,
+            history=history,
+            top_k=req.top_k,
+            mode=req.mode,
+            llm_svc=active_llm,
+            emb_svc=user_emb,
+        )
+        sources = response.get("sources", [])
     else:
         response = await rag.query(
             collection_id=req.collection_id,
@@ -339,7 +372,18 @@ async def chat_stream(
 
     async def build_generator():
         if is_free:
-            async for event in _free_chat_generator(user_message, history, mode, active_llm):
+            async for event in _free_chat_generator(user_message, history, mode, active_llm, web_search=req.web_search):
+                yield event
+        elif req.web_search:
+            async for event in rag.query_stream_with_web(
+                collection_id=collection_id,
+                user_message=user_message,
+                history=history,
+                top_k=top_k,
+                mode=mode,
+                llm_svc=active_llm,
+                emb_svc=user_emb,
+            ):
                 yield event
         else:
             async for event in rag.query_stream(
@@ -612,7 +656,18 @@ async def regenerate_response_stream(
 
     async def build_generator():
         if is_free:
-            async for event in _free_chat_generator(user_message_text, history, req.mode, active_llm):
+            async for event in _free_chat_generator(user_message_text, history, req.mode, active_llm, web_search=req.web_search):
+                yield event
+        elif req.web_search:
+            async for event in rag.query_stream_with_web(
+                collection_id=collection_id,
+                user_message=user_message_text,
+                history=history,
+                top_k=req.top_k,
+                mode=req.mode,
+                llm_svc=active_llm,
+                emb_svc=user_emb,
+            ):
                 yield event
         else:
             async for event in rag.query_stream(

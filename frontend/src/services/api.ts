@@ -92,6 +92,7 @@ export const streamMessage = (
     top_k?: number;
     mode?: 'socratic' | 'direct';
     model_config_id?: string;
+    web_search?: boolean;
   },
   onChunk: (text: string) => void,
   onSources: (sources: SourceItem[]) => void,
@@ -199,6 +200,7 @@ export const regenerateResponse = (
   onDone: (convId: string) => void,
   onError: (err: Error) => void,
   modelConfigId?: string,
+  webSearch?: boolean,
 ) => {
   const controller = new AbortController();
 
@@ -208,7 +210,7 @@ export const regenerateResponse = (
       'Content-Type': 'application/json',
       ...(localStorage.getItem('api_token') ? { 'Authorization': `Bearer ${localStorage.getItem('api_token')}` } : {}),
     },
-    body: JSON.stringify({ mode, top_k: topK, model_config_id: modelConfigId }),
+    body: JSON.stringify({ mode, top_k: topK, model_config_id: modelConfigId, web_search: webSearch }),
     signal: controller.signal,
   }).then(async (response) => {
     if (!response.ok) {

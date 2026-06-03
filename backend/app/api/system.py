@@ -51,6 +51,7 @@ async def get_config():
         hybrid_search_enabled=settings.hybrid_search_enabled,
         reranker_enabled=settings.reranker_enabled,
         query_rewrite_enabled=settings.query_rewrite_enabled,
+        web_search_backend=settings.web_search_backend,
     )
 
 

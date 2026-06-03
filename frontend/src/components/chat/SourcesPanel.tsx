@@ -3,7 +3,7 @@
  * Extracted from ChatPage.tsx.
  */
 import { motion } from 'framer-motion'
-import { FileText, X } from 'lucide-react'
+import { FileText, Globe, X } from 'lucide-react'
 import type { SourceItem } from '../../types'
 
 interface SourcesPanelProps {
@@ -41,46 +41,59 @@ export function SourcesPanel({ sources, onClose, onCitationClick }: SourcesPanel
             <p className="text-sm" style={{ color: 'var(--text-muted)' }}>暂无引用来源</p>
           </div>
         ) : (
-          sources.map((src, i) => (
+          sources.map((src, i) => {
+            const isWeb = src.source_type === 'web'
+            return (
             <motion.div
               key={i}
               initial={{ opacity: 0, x: 10 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: i * 0.05 }}
-              className="glass-card p-4 space-y-2 cursor-pointer group/source transition-all duration-200 hover:border-[var(--accent-blue)]/30"
-              style={{ border: '1px solid var(--border-glass)' }}
-              onClick={() => onCitationClick(src)}
-              title="点击查看文档原文对应位置"
+              className="glass-card p-4 space-y-2 group/source transition-all duration-200 hover:border-[var(--accent-blue)]/30"
+              style={{ border: isWeb ? '1px solid rgba(34,197,94,0.25)' : '1px solid var(--border-glass)' }}
+              onClick={() => {
+                if (isWeb && src.url) {
+                  window.open(src.url, '_blank', 'noopener,noreferrer')
+                } else {
+                  onCitationClick(src)
+                }
+              }}
+              title={isWeb ? `打开网页: ${src.url}` : '点击查看文档原文对应位置'}
             >
               <div className="flex items-center justify-between">
                 <span
-                  className="text-xs font-medium truncate max-w-[65%] group-hover/source:text-[var(--accent-blue)] transition-colors"
-                  style={{ color: 'var(--accent-blue)' }}
+                  className={`text-xs font-medium truncate max-w-[65%] transition-colors flex items-center gap-1.5 ${
+                    isWeb ? '' : 'group-hover/source:text-[var(--accent-blue)]'
+                  }`}
+                  style={{ color: isWeb ? '#16a34a' : 'var(--accent-blue)' }}
                 >
-                  {src.doc_name}
+                  {isWeb ? <Globe size={12} className="shrink-0" /> : <FileText size={12} className="shrink-0" />}
+                  <span className="truncate">{src.doc_name}</span>
                 </span>
                 <span
                   className="text-xs flex items-center gap-1"
                   style={{ color: 'var(--text-muted)' }}
                 >
-                  <span>{(src.score * 100).toFixed(0)}%</span>
+                  {!isWeb && <span>{(src.score * 100).toFixed(0)}%</span>}
                   <span
                     className="opacity-0 group-hover/source:opacity-100 transition-opacity text-[10px]"
-                    style={{ color: 'var(--accent-cyan)' }}
+                    style={{ color: isWeb ? '#16a34a' : 'var(--accent-cyan)' }}
                   >
-                    查看原文 →
+                    {isWeb ? '打开链接 →' : '查看原文 →'}
                   </span>
                 </span>
               </div>
-              <div
-                className="w-full h-1 rounded-full overflow-hidden"
-                style={{ background: 'var(--bg-input)' }}
-              >
+              {!isWeb && (
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-[var(--accent-blue)] to-[var(--accent-cyan)]"
-                  style={{ width: `${src.score * 100}%` }}
-                />
-              </div>
+                  className="w-full h-1 rounded-full overflow-hidden"
+                  style={{ background: 'var(--bg-input)' }}
+                >
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-[var(--accent-blue)] to-[var(--accent-cyan)]"
+                    style={{ width: `${src.score * 100}%` }}
+                  />
+                </div>
+              )}
               <p
                 className="text-xs leading-relaxed line-clamp-4"
                 style={{ color: 'var(--text-muted)' }}
@@ -88,7 +101,7 @@ export function SourcesPanel({ sources, onClose, onCitationClick }: SourcesPanel
                 {src.chunk_text}
               </p>
             </motion.div>
-          ))
+          )})
         )}
       </div>
     </div>

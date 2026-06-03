@@ -5,7 +5,7 @@
 import { useState, useRef, useEffect, type PointerEvent as ReactPointerEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Send, SlidersHorizontal, ChevronDown, Check, Loader2, Bot } from 'lucide-react'
+import { Send, SlidersHorizontal, ChevronDown, Check, Loader2, Bot, Globe } from 'lucide-react'
 import { TOP_K_OPTIONS } from '../../utils/constants'
 import { getProvider } from '../../utils/providers'
 import type { Collection, ActiveConfigs } from '../../types'
@@ -21,11 +21,13 @@ interface ChatInputProps {
   activeCollection: Collection | null
   activeModels: ActiveConfigs | null
   selectedModelId: string | null
+  webSearchEnabled: boolean
   onModeChange: (mode: 'socratic' | 'direct') => void
   onTopKChange: (value: number) => void
   onInputChange: (value: string) => void
   onSend: () => void
   onModelChange: (configId: string | null) => void
+  onWebSearchChange: (enabled: boolean) => void
 }
 
 const INPUT_PANEL_HEIGHT_KEY = 'chatInputPanelHeight'
@@ -48,11 +50,13 @@ export function ChatInput({
   activeCollection,
   activeModels,
   selectedModelId,
+  webSearchEnabled,
   onModeChange,
   onTopKChange,
   onInputChange,
   onSend,
   onModelChange,
+  onWebSearchChange,
 }: ChatInputProps) {
   const navigate = useNavigate()
   const [showTopKPanel, setShowTopKPanel] = useState(false)
@@ -175,6 +179,26 @@ export function ChatInput({
           <span className="hidden min-w-0 flex-1 truncate text-xs sm:block" style={{ color: 'var(--text-dim)' }}>
             {mode === 'socratic' ? '引导式提问，启发思考' : '直接给出答案'}
           </span>
+
+          {/* Web search toggle */}
+          <button
+            onClick={() => {
+              const next = !webSearchEnabled
+              onWebSearchChange(next)
+              localStorage.setItem('chatWebSearch', String(next))
+            }}
+            className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-200"
+            style={{
+              background: webSearchEnabled ? 'rgba(34,197,94,0.12)' : 'var(--bg-input)',
+              border: webSearchEnabled ? '1px solid rgba(34,197,94,0.35)' : '1px solid var(--border-glass)',
+              color: webSearchEnabled ? '#16a34a' : 'var(--text-muted)',
+              boxShadow: webSearchEnabled ? '0 2px 8px rgba(34,197,94,0.15)' : 'none',
+            }}
+            title={webSearchEnabled ? '已开启网络搜索' : '已关闭网络搜索'}
+          >
+            <Globe size={14} />
+            <span className="hidden sm:inline">网络</span>
+          </button>
 
           {/* Top-K selector (hidden in free chat mode) */}
           {!isFreeChat && (

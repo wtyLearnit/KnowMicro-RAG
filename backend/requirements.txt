@@ -27,6 +27,9 @@ rank-bm25==0.2.2
 jieba==0.42.1
 sentence-transformers==3.3.1
 
+# Web Search
+ddgs>=9.0.0
+
 # Streaming
 sse-starlette==2.2.1
 

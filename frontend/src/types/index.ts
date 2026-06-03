@@ -72,6 +72,8 @@ export interface SourceItem {
   chunk_text: string;
   score: number;
   chunk_index: number;
+  source_type?: 'kb' | 'web';
+  url?: string;
 }
 
 export interface ChatResponse {

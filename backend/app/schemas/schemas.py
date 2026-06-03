@@ -100,6 +100,7 @@ class ChatRequest(BaseModel):
     top_k: int = Field(default=5, ge=1, le=20)
     mode: str = Field(default="socratic", pattern="^(socratic|direct)$")
     model_config_id: Optional[str] = None
+    web_search: bool = False
 
 
 class SourceItem(BaseModel):
@@ -108,6 +109,8 @@ class SourceItem(BaseModel):
     chunk_text: str
     score: float
     chunk_index: int = 0
+    source_type: str = "kb"   # "kb" | "web"
+    url: str = ""
 
 
 class ChatResponse(BaseModel):
@@ -161,6 +164,7 @@ class RegenerateRequest(BaseModel):
     mode: str = Field(default="socratic", pattern="^(socratic|direct)$")
     top_k: int = Field(default=5, ge=1, le=20)
     model_config_id: Optional[str] = None
+    web_search: bool = False
 
 
 class BranchRequest(BaseModel):
@@ -186,6 +190,7 @@ class ConfigResponse(BaseModel):
     hybrid_search_enabled: bool = True
     reranker_enabled: bool = True
     query_rewrite_enabled: bool = True
+    web_search_backend: str = "duckduckgo"
 
 
 # ── Archive / Trash ──────────────────────────────────
