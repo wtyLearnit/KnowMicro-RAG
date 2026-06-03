@@ -3,9 +3,12 @@
  */
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { FileText, X, Loader2, ChevronLeft, ChevronRight, Download, AlertTriangle, Maximize2, Minimize2 } from 'lucide-react'
 import { getDocumentPreview, getDocumentFileUrl } from '../../services/api'
 import { useSidebarWidth } from '../../hooks/useSidebarWidth'
+import { useDocxPreview } from '../../hooks/useDocxPreview'
 import type { DocumentPreview } from '../../types'
 
 interface DocumentPreviewModalProps {
@@ -21,7 +24,8 @@ const INLINE_TYPES: Record<string, 'iframe' | 'img' | false> = {
   png: 'img', jpg: 'img', jpeg: 'img', gif: 'img', webp: 'img', svg: 'img',
 }
 
-const PLAIN_TEXT = new Set(['txt', 'md', 'markdown'])
+const PLAIN_TEXT = new Set(['txt'])
+const MARKDOWN_TYPES = new Set(['md', 'markdown'])
 
 function previewMode(fileType: string): 'iframe' | 'img' | false {
   return INLINE_TYPES[fileType.toLowerCase()] ?? false
@@ -38,6 +42,7 @@ export function DocumentPreviewModal({ docId, onClose }: DocumentPreviewModalPro
   const [origError, setOrigError] = useState(false)
   const [origLoading, setOrigLoading] = useState(false)
   const [maximized, setMaximized] = useState(false)
+  const [currentSlide, setCurrentSlide] = useState(0)
   const sidebarWidth = useSidebarWidth()
 
   useEffect(() => {
@@ -52,12 +57,25 @@ export function DocumentPreviewModal({ docId, onClose }: DocumentPreviewModalPro
     setActiveTab('content')
     setOrigError(false)
     setOrigLoading(false)
+    setCurrentSlide(0)
   }, [docId])
 
   const fileUrl = getDocumentFileUrl(docId)
   const fileType = preview?.file_type?.toLowerCase() ?? ''
   const isTxt = PLAIN_TEXT.has(fileType)
+  const isMd = MARKDOWN_TYPES.has(fileType)
+  const isDocx = fileType === 'docx'
+  const isPptx = fileType === 'pptx'
+  const hasSlides = isPptx && preview?.slides && preview.slides.length > 0
+  const slides = preview?.slides ?? []
   const origMode = preview ? previewMode(preview.file_type) : false
+
+  // DOCX → HTML conversion (lazy: only fetches when user opens the "原文件" tab)
+  const {
+    html: docxHtml,
+    loading: docxLoading,
+    error: docxError,
+  } = useDocxPreview(isDocx ? fileUrl : '', activeTab === 'original')
 
   // When user clicks the "原文件" tab, mark loading so we show a brief spinner
   const handleSelectOriginal = () => {
@@ -161,7 +179,7 @@ export function DocumentPreviewModal({ docId, onClose }: DocumentPreviewModalPro
         <div
           className="flex-1 min-h-0 p-5"
           style={{
-            overflow: activeTab === 'original' ? 'hidden' : 'auto',
+            overflow: (activeTab === 'original' && !isMd && !isDocx && !isPptx) ? 'hidden' : 'auto',
           }}
         >
           {/* Initial loading */}
@@ -178,9 +196,15 @@ export function DocumentPreviewModal({ docId, onClose }: DocumentPreviewModalPro
 
           {/* ── Content tab ── */}
           {!loading && !error && activeTab === 'content' && (
-            <div className="prose-content text-sm leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--text-secondary)' }}>
-              {preview?.content || '(无内容)'}
-            </div>
+            isMd ? (
+              <div className="prose-content text-sm">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{preview?.content || ''}</ReactMarkdown>
+              </div>
+            ) : (
+              <div className="prose-content text-sm leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--text-secondary)' }}>
+                {preview?.content || '(无内容)'}
+              </div>
+            )
           )}
 
           {/* ── Chunks tab ── */}
@@ -276,8 +300,106 @@ export function DocumentPreviewModal({ docId, onClose }: DocumentPreviewModalPro
                 </div>
               )}
 
-              {/* DOCX/XLSX/PPTX: download card */}
-              {!origError && origMode === false && !isTxt && (
+              {/* Markdown: rendered preview */}
+              {!origError && isMd && (
+                <div className="flex-1 overflow-y-auto rounded-lg p-6" style={{ border: '1px solid var(--border-glass)', background: 'var(--bg-input)' }}>
+                  <div className="prose-content text-sm">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{preview?.content || ''}</ReactMarkdown>
+                  </div>
+                </div>
+              )}
+
+              {/* DOCX: mammoth.js HTML preview */}
+              {!origError && isDocx && !docxError && (
+                <div className="flex-1 overflow-y-auto rounded-lg p-6" style={{ border: '1px solid var(--border-glass)', background: 'var(--bg-input)' }}>
+                  {docxLoading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <Loader2 size={24} className="animate-spin" style={{ color: 'var(--accent-blue)' }} />
+                    </div>
+                  ) : docxHtml ? (
+                    <div className="prose-content text-sm" dangerouslySetInnerHTML={{ __html: docxHtml }} />
+                  ) : null}
+                </div>
+              )}
+
+              {/* DOCX load error → download fallback */}
+              {!origError && isDocx && docxError && (
+                <div className="flex flex-col items-center justify-center flex-1 gap-4">
+                  <AlertTriangle size={40} style={{ color: 'var(--text-dim)' }} />
+                  <p className="text-sm" style={{ color: 'var(--text-muted)' }}>预览失败：{docxError}</p>
+                  <a href={fileUrl} download
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium"
+                    style={{ background: 'var(--accent-blue)', color: '#fff' }}>
+                    <Download size={16} />下载原文件
+                  </a>
+                </div>
+              )}
+
+              {/* PPTX: slide-by-slide text viewer */}
+              {!origError && hasSlides && (
+                <div className="flex-1 flex flex-col min-h-0">
+                  {/* Slide navigation */}
+                  <div className="flex items-center justify-between mb-3 shrink-0">
+                    <span className="text-xs font-medium px-3 py-1 rounded-full" style={{ background: 'rgba(59,130,246,0.1)', color: 'var(--accent-blue)' }}>
+                      幻灯片 {currentSlide + 1} / {slides.length}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setCurrentSlide(Math.max(0, currentSlide - 1))}
+                        disabled={currentSlide === 0}
+                        className="btn-ghost p-1.5 disabled:opacity-30"
+                      >
+                        <ChevronLeft size={16} />
+                      </button>
+                      <button
+                        onClick={() => setCurrentSlide(Math.min(slides.length - 1, currentSlide + 1))}
+                        disabled={currentSlide === slides.length - 1}
+                        className="btn-ghost p-1.5 disabled:opacity-30"
+                      >
+                        <ChevronRight size={16} />
+                      </button>
+                    </div>
+                  </div>
+                  {/* Slide content */}
+                  <motion.div
+                    key={currentSlide}
+                    initial={{ opacity: 0, x: 10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="flex-1 overflow-y-auto rounded-lg p-6"
+                    style={{ border: '1px solid var(--border-glass)', background: 'var(--bg-input)' }}
+                  >
+                    {slides[currentSlide]?.title && (
+                      <h4 className="font-semibold text-base mb-3 pb-2 border-b" style={{ color: 'var(--text-primary)', borderColor: 'var(--border-glass)' }}>
+                        {slides[currentSlide].title}
+                      </h4>
+                    )}
+                    <div className="prose-content text-sm whitespace-pre-wrap" style={{ color: 'var(--text-secondary)' }}>
+                      {slides[currentSlide]?.text || '(本页无文本内容)'}
+                    </div>
+                  </motion.div>
+                  {/* Slide list (quick jump) */}
+                  <div className="mt-3 flex gap-1.5 overflow-x-auto shrink-0 max-h-16 pb-1">
+                    {slides.map((slide, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setCurrentSlide(i)}
+                        className="text-xs px-2.5 py-1.5 rounded-md whitespace-nowrap transition-all flex-shrink-0"
+                        style={{
+                          background: i === currentSlide ? 'var(--accent-blue)' : 'var(--bg-input)',
+                          color: i === currentSlide ? '#fff' : 'var(--text-muted)',
+                          border: i === currentSlide ? '1px solid var(--accent-blue)' : '1px solid var(--border-glass)',
+                        }}
+                        title={slide.title}
+                      >
+                        {i + 1}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Other unsupported: download card */}
+              {!origError && origMode === false && !isMd && !isDocx && !isPptx && !isTxt && (
                 <div className="flex flex-col items-center justify-center flex-1 gap-4">
                   <div className="w-20 h-20 rounded-2xl flex items-center justify-center"
                     style={{ background: 'var(--bg-input)', border: '1px solid var(--border-glass)' }}>

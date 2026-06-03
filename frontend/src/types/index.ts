@@ -28,6 +28,13 @@ export interface DocumentChunk {
   char_count: number;
 }
 
+export interface SlideData {
+  index: number;
+  title: string;
+  text: string;
+  char_count: number;
+}
+
 export interface DocumentPreview {
   document_id: string;
   filename: string;
@@ -36,6 +43,7 @@ export interface DocumentPreview {
   chunk_count: number;
   content: string;
   chunks: DocumentChunk[];
+  slides?: SlideData[] | null;
 }
 
 export interface Conversation {

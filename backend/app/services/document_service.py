@@ -31,6 +31,10 @@ class DocumentService:
             meta = {"encoding": "utf-8"}
         elif ext == ".docx":
             text, meta = self._parse_docx(content)
+        elif ext == ".pptx":
+            text, meta = self._parse_pptx(content)
+        elif ext == ".ppt":
+            raise ValueError("旧版 .ppt 格式暂不支持，请转换为 .pptx 后上传")
         else:
             raise ValueError(f"不支持的文件格式: {ext}")
 
@@ -68,6 +72,40 @@ class DocumentService:
                 text_parts.append(para.text)
         return "\n\n".join(text_parts), {
             "paragraphs": len(doc.paragraphs),
+        }
+
+    def _parse_pptx(self, content: bytes) -> tuple:
+        """Extract text from PPTX, preserving slide structure."""
+        from pptx import Presentation
+        prs = Presentation(io.BytesIO(content))
+        slides: List[Dict[str, Any]] = []
+        all_text: List[str] = []
+
+        for i, slide in enumerate(prs.slides):
+            slide_texts: List[str] = []
+            title = ""
+            for shape in slide.shapes:
+                if shape.has_text_frame:
+                    for para in shape.text_frame.paragraphs:
+                        t = para.text.strip()
+                        if t:
+                            # First text on the slide becomes the title
+                            if not title:
+                                title = t
+                            slide_texts.append(t)
+            slide_full = "\n".join(slide_texts)
+            slides.append({
+                "index": i,
+                "title": title or f"幻灯片 {i + 1}",
+                "text": slide_full,
+                "char_count": len(slide_full),
+            })
+            if slide_full:
+                all_text.append(f"[幻灯片 {i + 1}]\n{slide_full}")
+
+        return "\n\n".join(all_text), {
+            "slide_count": len(prs.slides),
+            "slides": slides,
         }
 
     def chunk(

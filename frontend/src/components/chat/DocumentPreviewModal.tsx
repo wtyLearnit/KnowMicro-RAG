@@ -4,10 +4,13 @@
  */
 import { useState, useCallback, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FileText, Loader2, X, ExternalLink, Download, AlertTriangle, Maximize2, Minimize2 } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import { FileText, Loader2, X, ExternalLink, Download, AlertTriangle, Maximize2, Minimize2, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { DocumentPreview, DocumentChunk } from '../../types'
 import { getDocumentFileUrl } from '../../services/api'
 import { useSidebarWidth } from '../../hooks/useSidebarWidth'
+import { useDocxPreview } from '../../hooks/useDocxPreview'
 
 interface DocumentPreviewModalProps {
   previewDoc: DocumentPreview | null
@@ -23,7 +26,8 @@ const INLINE_PREVIEW: Record<string, 'iframe' | 'img' | false> = {
   png: 'img', jpg: 'img', jpeg: 'img', gif: 'img', webp: 'img', svg: 'img',
 }
 
-const PLAIN_TEXT_TYPES = new Set(['txt', 'md', 'markdown'])
+const PLAIN_TEXT_TYPES = new Set(['txt'])
+const MARKDOWN_TYPES = new Set(['md', 'markdown'])
 
 export function DocumentPreviewModal({
   previewDoc,
@@ -34,12 +38,14 @@ export function DocumentPreviewModal({
   const [viewMode, setViewMode] = useState<ViewMode>('text')
   const [origError, setOrigError] = useState<string | null>(null)
   const [maximized, setMaximized] = useState(false)
+  const [currentSlide, setCurrentSlide] = useState(0)
   const sidebarWidth = useSidebarWidth()
 
   // Reset view when opening a different document
   useEffect(() => {
     setViewMode('text')
     setOrigError(null)
+    setCurrentSlide(0)
   }, [previewDoc?.document_id])
 
   const switchToOriginal = useCallback(() => {
@@ -58,7 +64,19 @@ export function DocumentPreviewModal({
   const docId = previewDoc.document_id
   const fileUrl = getDocumentFileUrl(docId)
   const fileType = previewDoc.file_type.toLowerCase()
+  const isMd = MARKDOWN_TYPES.has(fileType)
+  const isDocx = fileType === 'docx'
+  const isPptx = fileType === 'pptx'
+  const hasSlides = isPptx && previewDoc?.slides && previewDoc.slides.length > 0
+  const slides = previewDoc?.slides ?? []
   const previewMode = PLAIN_TEXT_TYPES.has(fileType) ? null : (INLINE_PREVIEW[fileType] ?? false)
+
+  // DOCX → HTML conversion (lazy: only fetches when user switches to original view)
+  const {
+    html: docxHtml,
+    loading: docxLoading,
+    error: docxError,
+  } = useDocxPreview(isDocx ? fileUrl : '', viewMode === 'original')
 
   return (
     <AnimatePresence>
@@ -144,7 +162,7 @@ export function DocumentPreviewModal({
             <div
               className="flex-1 min-h-0 px-6 py-4"
               style={{
-                overflow: viewMode === 'original' ? 'hidden' : 'auto',
+                overflow: (viewMode === 'original' && !isMd && !isDocx && !isPptx) ? 'hidden' : 'auto',
               }}
             >
               {/* Loading (text view) */}
@@ -181,9 +199,15 @@ export function DocumentPreviewModal({
                               </span>
                             )}
                           </div>
-                          <p className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: isHighlighted ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
-                            {chunk.text}
-                          </p>
+                          {isMd ? (
+                            <div className="prose-content text-sm">
+                              <ReactMarkdown remarkPlugins={[remarkGfm]}>{chunk.text}</ReactMarkdown>
+                            </div>
+                          ) : (
+                            <p className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: isHighlighted ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                              {chunk.text}
+                            </p>
+                          )}
                         </div>
                       )
                     })}
@@ -223,8 +247,103 @@ export function DocumentPreviewModal({
                         onError={handleOrigImgError} />
                     </div>
                   )}
+                  {/* Markdown: rendered preview */}
+                  {!origError && isMd && (
+                    <div className="flex-1 overflow-y-auto rounded-lg p-6" style={{ border: '1px solid var(--border-glass)', background: 'var(--bg-input)' }}>
+                      <div className="prose-content text-sm">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{previewDoc.content || ''}</ReactMarkdown>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* DOCX: mammoth.js HTML preview */}
+                  {!origError && isDocx && !docxError && (
+                    <div className="flex-1 overflow-y-auto rounded-lg p-6" style={{ border: '1px solid var(--border-glass)', background: 'var(--bg-input)' }}>
+                      {docxLoading ? (
+                        <div className="flex items-center justify-center py-12">
+                          <Loader2 size={24} className="animate-spin" style={{ color: 'var(--accent-blue)' }} />
+                        </div>
+                      ) : docxHtml ? (
+                        <div className="prose-content text-sm" dangerouslySetInnerHTML={{ __html: docxHtml }} />
+                      ) : null}
+                    </div>
+                  )}
+
+                  {/* DOCX load error → download fallback */}
+                  {!origError && isDocx && docxError && (
+                    <div className="flex flex-col items-center justify-center flex-1 gap-4">
+                      <AlertTriangle size={40} style={{ color: 'var(--text-dim)' }} />
+                      <p className="text-sm" style={{ color: 'var(--text-muted)' }}>预览失败：{docxError}</p>
+                      <a href={fileUrl} download className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium" style={{ background: 'var(--accent-blue)', color: '#fff' }}>
+                        <Download size={16} />下载原文件
+                      </a>
+                    </div>
+                  )}
+
+                  {/* PPTX: slide-by-slide text viewer */}
+                  {!origError && hasSlides && (
+                    <div className="flex-1 flex flex-col min-h-0">
+                      <div className="flex items-center justify-between mb-3 shrink-0">
+                        <span className="text-xs font-medium px-3 py-1 rounded-full" style={{ background: 'rgba(59,130,246,0.1)', color: 'var(--accent-blue)' }}>
+                          幻灯片 {currentSlide + 1} / {slides.length}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setCurrentSlide(Math.max(0, currentSlide - 1))}
+                            disabled={currentSlide === 0}
+                            className="p-1.5 disabled:opacity-30"
+                            style={{ color: 'var(--text-muted)' }}
+                          >
+                            <ChevronLeft size={16} />
+                          </button>
+                          <button
+                            onClick={() => setCurrentSlide(Math.min(slides.length - 1, currentSlide + 1))}
+                            disabled={currentSlide === slides.length - 1}
+                            className="p-1.5 disabled:opacity-30"
+                            style={{ color: 'var(--text-muted)' }}
+                          >
+                            <ChevronRight size={16} />
+                          </button>
+                        </div>
+                      </div>
+                      <motion.div
+                        key={currentSlide}
+                        initial={{ opacity: 0, x: 10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className="flex-1 overflow-y-auto rounded-lg p-6"
+                        style={{ border: '1px solid var(--border-glass)', background: 'var(--bg-input)' }}
+                      >
+                        {slides[currentSlide]?.title && (
+                          <h4 className="font-semibold text-base mb-3 pb-2 border-b" style={{ color: 'var(--text-primary)', borderColor: 'var(--border-glass)' }}>
+                            {slides[currentSlide].title}
+                          </h4>
+                        )}
+                        <div className="prose-content text-sm whitespace-pre-wrap" style={{ color: 'var(--text-secondary)' }}>
+                          {slides[currentSlide]?.text || '(本页无文本内容)'}
+                        </div>
+                      </motion.div>
+                      <div className="mt-3 flex gap-1.5 overflow-x-auto shrink-0 max-h-16 pb-1">
+                        {slides.map((slide, i) => (
+                          <button
+                            key={i}
+                            onClick={() => setCurrentSlide(i)}
+                            className="text-xs px-2.5 py-1.5 rounded-md whitespace-nowrap transition-all flex-shrink-0"
+                            style={{
+                              background: i === currentSlide ? 'var(--accent-blue)' : 'var(--bg-input)',
+                              color: i === currentSlide ? '#fff' : 'var(--text-muted)',
+                              border: i === currentSlide ? '1px solid var(--accent-blue)' : '1px solid var(--border-glass)',
+                            }}
+                            title={slide.title}
+                          >
+                            {i + 1}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Non-previewable: download card */}
-                  {!origError && previewMode === false && (
+                  {!origError && previewMode === false && !isMd && !isDocx && !isPptx && (
                     <div className="flex flex-col items-center justify-center py-16 gap-4">
                       <div className="w-20 h-20 rounded-2xl flex items-center justify-center" style={{ background: 'var(--bg-input)', border: '1px solid var(--border-glass)' }}>
                         <FileText size={36} style={{ color: 'var(--accent-blue)' }} />

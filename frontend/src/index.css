@@ -403,6 +403,27 @@
 .prose-content a { color: var(--accent-blue); }
 .prose-content a:hover { color: var(--accent-cyan); }
 .prose-content hr { @apply my-6; border-color: var(--border-glass); }
+/* ── Markdown table styles (GFM) ── */
+.prose-content table {
+  @apply w-full my-3;
+  border-collapse: collapse;
+}
+.prose-content th,
+.prose-content td {
+  @apply px-3 py-2 text-left text-sm;
+  border: 1px solid var(--border-glass);
+}
+.prose-content th {
+  @apply font-semibold;
+  background: var(--bg-input);
+  color: var(--text-primary);
+}
+.prose-content td {
+  color: var(--text-secondary);
+}
+.prose-content tr:nth-child(even) td {
+  background: var(--bg-card);
+}
 
 /* Xuan theme prose override */
 [data-theme="xuan"] .prose-content h1,

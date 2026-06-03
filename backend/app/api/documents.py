@@ -46,6 +46,8 @@ _MIME_TYPES: dict[str, str] = {
     ".pdf": "application/pdf",
     ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     ".doc": "application/msword",
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ".ppt": "application/vnd.ms-powerpoint",
     ".txt": "text/plain; charset=utf-8",
     ".md": "text/markdown; charset=utf-8",
     ".markdown": "text/markdown; charset=utf-8",
@@ -318,6 +320,11 @@ async def get_document_preview(
             for c in chunk_list
         ]
 
+    # Include slide metadata for PPTX files
+    slides = None
+    if doc.metadata_ and isinstance(doc.metadata_, dict):
+        slides = doc.metadata_.get("slides")
+
     return DocumentPreview(
         document_id=doc.id,
         filename=doc.filename,
@@ -326,6 +333,7 @@ async def get_document_preview(
         chunk_count=doc.chunk_count,
         content=doc.content or "",
         chunks=chunks,
+        slides=slides,
     )
 
 

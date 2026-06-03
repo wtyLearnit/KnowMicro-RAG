@@ -69,6 +69,7 @@ class DocumentPreview(BaseModel):
     chunk_count: int
     content: str
     chunks: List[DocumentChunk]
+    slides: Optional[List[dict]] = None
 
 
 # ── Search ──────────────────────────────────────────

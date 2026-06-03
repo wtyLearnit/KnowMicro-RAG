@@ -372,7 +372,7 @@ export function KnowledgeBasePage() {
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept=".pdf,.txt,.md,.docx"
+                      accept=".pdf,.txt,.md,.docx,.pptx"
                       multiple
                       onChange={handleFileInput}
                       className="hidden"
