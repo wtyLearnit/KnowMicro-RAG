@@ -2,24 +2,28 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# System deps for document parsing
+# System dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    gcc \
+    g++ \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Python deps
+# Python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --default-timeout=300 -r requirements.txt \
+    && rm -rf /root/.cache/pip
 
 # App code
 COPY app/ ./app/
 
-# Alembic migrations (needed for init_db on fresh start)
+# Alembic migrations
 COPY alembic.ini .
 COPY alembic/ ./alembic/
 
-# Data directory
-RUN mkdir -p /app/data/chroma
+# Runtime data directory
+RUN mkdir -p /app/data/chroma /app/data/uploads
 
 EXPOSE 8000
 
