@@ -8,3 +8,14 @@ __pycache__/
 *.egg-info/
 data/
 .vite/
+
+# 工具目录 & 个人配置
+.codegraph/
+.claude/
+reasonix.toml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
