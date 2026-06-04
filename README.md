@@ -47,20 +47,26 @@
 - Python 3.11+
 - Node.js 20+
 - 可用的 LLM API Key（OpenAI 或兼容服务）
+- Embedding API Key（可与 LLM 共用同一 Key）
 
 ### 1. 克隆 & 配置
 
 ```bash
+git clone <your-repo-url> platos-window
 cd platos-window
 
-# 后端配置
+# 复制环境变量模板
 cp backend/.env.example backend/.env
-# 编辑 backend/.env，填入你的 API Key
 ```
 
-### 2. 启动后端
+> **说明**：`backend/.env` 中的 API Key 仅作为兜底默认值。应用启动后，可通过前端「设置」页面在线配置 LLM 和 Embedding，前端配置的 Key 优先级更高，无需修改 `.env` 文件。
+
+### 2. 首次启动（本地开发）
+
+新用户 clone 后数据库是空的，后端首次启动会自动建表。所有数据（知识库、对话、日程、API Key 配置）均存储在 `backend/data/` 目录下，该目录不会被提交到 Git。
 
 ```bash
+# 启动后端
 cd backend
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
@@ -68,9 +74,8 @@ uvicorn app.main:app --reload --port 8000
 
 后端启动后访问 http://localhost:8000/docs 查看 API 文档。
 
-### 3. 启动前端
-
 ```bash
+# 另一个终端，启动前端
 cd frontend
 npm install
 npm run dev
@@ -78,10 +83,29 @@ npm run dev
 
 前端启动后访问 http://localhost:5173。
 
-### 4. Docker 一键部署
+### 3. 配置 LLM
+
+打开前端 → 点击左侧 **设置** → 在「模型配置」中添加 LLM 和 Embedding 配置。支持 OpenAI / DeepSeek / 智谱 / 阿里云 DashScope / Ollama 等所有 OpenAI 兼容接口。
+
+### 4. 部署到公网
+
+如需部署到服务器，务必设置以下安全相关环境变量：
 
 ```bash
-# 确保已配置好 .env 中的 API Key
+# 在 backend/.env 中设置
+SECRET_KEY=your-random-secret-string   # 用于加密存储的 API Key
+API_TOKEN=your-api-access-token        # API 访问令牌
+
+# 前端登录后，在浏览器控制台执行：
+# localStorage.setItem('api_token', 'your-api-access-token')
+```
+
+不设置 `API_TOKEN` 时，后端不做认证校验（仅适合本地开发）。
+
+### 5. Docker 一键部署
+
+```bash
+# 确保已配置好 backend/.env
 docker compose up -d
 ```
 
