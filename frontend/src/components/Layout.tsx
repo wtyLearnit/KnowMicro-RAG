@@ -1,9 +1,9 @@
-﻿/* 苏格拉底之窗 - Layout */
-import { useState, type ReactNode } from 'react'
+/* 苏格拉底之窗 - Layout */
+import { useState, useRef, useEffect, type ReactNode } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   Home, MessageSquare, BookOpen, Settings, Menu, X,
-  Sparkles, PanelLeftOpen, PanelLeftClose, Trash2,
+  Sparkles, PanelLeftOpen, PanelLeftClose, Trash2, CalendarDays,
 } from 'lucide-react'
 import { StarField } from './StarField'
 import { useTheme } from './ThemeContext'
@@ -12,6 +12,7 @@ const navItems = [
   { path: '/', label: '首页', icon: Home },
   { path: '/chat', label: '对话', icon: MessageSquare },
   { path: '/knowledge', label: '知识库', icon: BookOpen },
+  { path: '/schedule', label: '日程', icon: CalendarDays },
   { path: '/settings', label: '设置', icon: Settings },
 ]
 
@@ -39,11 +40,30 @@ export function Layout({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
   const location = useLocation()
   const { theme } = useTheme()
+  const navRef = useRef<HTMLDivElement>(null)
+  const [indicatorStyle, setIndicatorStyle] = useState({ top: 0, height: 0 })
 
   const isActive = (path: string) => {
     if (path === '/') return location.pathname === '/'
     return location.pathname.startsWith(path)
   }
+
+  const activePath = isActive('/trash') ? '/trash' :
+    navItems.find(item => isActive(item.path))?.path ?? '/'
+
+  // Update nav indicator position
+  useEffect(() => {
+    if (!navRef.current || sidebarCollapsed) return
+    const activeBtn = navRef.current.querySelector(`[data-nav-path="${activePath}"]`) as HTMLElement
+    if (activeBtn) {
+      const navRect = navRef.current.getBoundingClientRect()
+      const btnRect = activeBtn.getBoundingClientRect()
+      setIndicatorStyle({
+        top: btnRect.top - navRect.top,
+        height: btnRect.height,
+      })
+    }
+  }, [activePath, sidebarCollapsed, location.pathname])
 
   const toggleCollapse = () => {
     setSidebarCollapsed(prev => {
@@ -85,8 +105,13 @@ export function Layout({ children }: { children: ReactNode }) {
         <div className={`border-b transition-all duration-300 ${isCollapsed ? 'p-3' : 'p-5'}`}
              style={{ borderColor: 'var(--border-glass)' }}>
           <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'}`}>
-            <img src="/logo.png" alt="苏格拉底之窗"
-                 className={`rounded-xl object-cover shadow-lg transition-all duration-300 ${isCollapsed ? 'w-9 h-9' : 'w-10 h-10'}`} />
+            <div className="relative">
+              <img src="/logo.png" alt="苏格拉底之窗"
+                   className={`rounded-xl object-cover shadow-lg transition-all duration-300 ${isCollapsed ? 'w-9 h-9' : 'w-10 h-10'}`} />
+              {/* Logo glow ring */}
+              <div className="absolute inset-0 rounded-xl animate-glow-pulse"
+                   style={{ boxShadow: '0 0 12px rgba(59,130,246,0.2)' }} />
+            </div>
             {!isCollapsed && (
               <div>
                 <h1 className="font-serif font-bold text-lg leading-tight" style={{ color: 'var(--text-primary)' }}>
@@ -101,13 +126,26 @@ export function Layout({ children }: { children: ReactNode }) {
         </div>
 
         {/* Nav */}
-        <nav className={`flex-1 space-y-1 transition-all duration-300 ${isCollapsed ? 'p-1.5' : 'p-3'}`}>
+        <nav ref={navRef} className={`flex-1 space-y-1 transition-all duration-300 relative ${isCollapsed ? 'p-1.5' : 'p-3'}`}>
+          {/* Sliding active indicator */}
+          {!isCollapsed && (
+            <div
+              className="nav-indicator"
+              style={{
+                top: indicatorStyle.top,
+                height: indicatorStyle.height,
+                opacity: indicatorStyle.height > 0 ? 1 : 0,
+              }}
+            />
+          )}
+
           {navItems.map((item) => {
             const Icon = item.icon
             const active = isActive(item.path)
             return (
               <button
                 key={item.path}
+                data-nav-path={item.path}
                 onClick={() => {
                   navigate(item.path)
                   setSidebarOpen(false)
@@ -117,9 +155,9 @@ export function Layout({ children }: { children: ReactNode }) {
                 }`}
                 style={{
                   color: active ? 'var(--accent-blue)' : 'var(--text-secondary)',
-                  background: active ? 'rgba(59,130,246,0.12)' : 'transparent',
-                  border: active ? '1px solid rgba(59,130,246,0.25)' : '1px solid transparent',
-                  boxShadow: active ? '0 2px 8px rgba(59,130,246,0.1)' : 'none',
+                  background: active && isCollapsed ? 'rgba(59,130,246,0.12)' : 'transparent',
+                  border: active && isCollapsed ? '1px solid rgba(59,130,246,0.25)' : '1px solid transparent',
+                  boxShadow: active && isCollapsed ? '0 2px 8px rgba(59,130,246,0.1)' : 'none',
                 }}
                 onMouseEnter={(e) => {
                   if (!active) {
@@ -150,13 +188,14 @@ export function Layout({ children }: { children: ReactNode }) {
               navigate('/trash')
               setSidebarOpen(false)
             }}
+            data-nav-path="/trash"
             className={`flex items-center rounded-lg font-medium text-sm transition-all duration-200 ${
               isCollapsed ? 'w-full justify-center px-0 py-3' : 'w-full gap-3 px-4 py-3'
             }`}
             style={{
               color: isActive('/trash') ? 'var(--accent-blue)' : 'var(--text-secondary)',
-              background: isActive('/trash') ? 'rgba(59,130,246,0.12)' : 'transparent',
-              border: isActive('/trash') ? '1px solid rgba(59,130,246,0.25)' : '1px solid transparent',
+              background: isActive('/trash') && isCollapsed ? 'rgba(59,130,246,0.12)' : 'transparent',
+              border: isActive('/trash') && isCollapsed ? '1px solid rgba(59,130,246,0.25)' : '1px solid transparent',
             }}
             title={isCollapsed ? '回收站' : undefined}
           >
@@ -178,7 +217,7 @@ export function Layout({ children }: { children: ReactNode }) {
       {/* Main */}
       <div className="flex-1 flex flex-col min-w-0 relative z-10">
         {/* Top bar */}
-        <header className="h-14 border-b flex items-center px-4 lg:px-6 backdrop-blur-xl"
+        <header className="h-14 border-b flex items-center px-4 lg:px-6 backdrop-blur-xl header-gradient-border"
                 style={{
                   borderColor: 'var(--border-glass)',
                   background: headerBackgroundByTheme[theme] ?? headerBackgroundByTheme.cosmos,
@@ -197,7 +236,7 @@ export function Layout({ children }: { children: ReactNode }) {
             {sidebarCollapsed ? <PanelLeftOpen size={20} /> : <PanelLeftClose size={20} />}
           </button>
           <div className="flex items-center gap-2 text-sm font-light tracking-wide" style={{ color: 'var(--text-muted)' }}>
-            <Sparkles size={14} className="text-[var(--accent-blue)]" />
+            <Sparkles size={14} className="text-[var(--accent-blue)] animate-pulse-soft" />
             苏格拉底之窗
           </div>
         </header>

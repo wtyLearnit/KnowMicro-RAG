@@ -28,6 +28,12 @@ export function SourcesPanel({ sources, onClose, onCitationClick }: SourcesPanel
         >
           <FileText size={16} className="text-[var(--accent-blue)]" />
           引用来源
+          {sources.length > 0 && (
+            <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px]"
+                  style={{ background: 'rgba(59,130,246,0.12)', color: 'var(--accent-blue)' }}>
+              {sources.length}
+            </span>
+          )}
         </h3>
         <button onClick={onClose} className="btn-ghost p-1">
           <X size={16} />
@@ -37,7 +43,12 @@ export function SourcesPanel({ sources, onClose, onCitationClick }: SourcesPanel
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {sources.length === 0 ? (
           <div className="text-center py-12">
-            <FileText size={32} className="mx-auto mb-3" style={{ color: 'var(--text-dim)' }} />
+            <motion.div
+              animate={{ y: [0, -4, 0] }}
+              transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+            >
+              <FileText size={32} className="mx-auto mb-3" style={{ color: 'var(--text-dim)' }} />
+            </motion.div>
             <p className="text-sm" style={{ color: 'var(--text-muted)' }}>暂无引用来源</p>
           </div>
         ) : (
@@ -46,11 +57,14 @@ export function SourcesPanel({ sources, onClose, onCitationClick }: SourcesPanel
             return (
             <motion.div
               key={i}
-              initial={{ opacity: 0, x: 10 }}
+              initial={{ opacity: 0, x: 12 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: i * 0.05 }}
-              className="glass-card p-4 space-y-2 group/source transition-all duration-200 hover:border-[var(--accent-blue)]/30"
-              style={{ border: isWeb ? '1px solid rgba(34,197,94,0.25)' : '1px solid var(--border-glass)' }}
+              transition={{ delay: i * 0.06, duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+              className="glass-card p-4 space-y-2.5 group/source cursor-pointer relative overflow-hidden"
+              style={{
+                border: isWeb ? '1px solid rgba(34,197,94,0.25)' : '1px solid var(--border-glass)',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+              }}
               onClick={() => {
                 if (isWeb && src.url) {
                   window.open(src.url, '_blank', 'noopener,noreferrer')
@@ -58,8 +72,24 @@ export function SourcesPanel({ sources, onClose, onCitationClick }: SourcesPanel
                   onCitationClick(src)
                 }
               }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = isWeb ? 'rgba(34,197,94,0.5)' : 'rgba(59,130,246,0.4)'
+                e.currentTarget.style.transform = 'translateX(4px)'
+                e.currentTarget.style.boxShadow = isWeb
+                  ? '0 4px 20px rgba(34,197,94,0.1)'
+                  : '0 4px 20px rgba(59,130,246,0.1)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = isWeb ? 'rgba(34,197,94,0.25)' : 'var(--border-glass)'
+                e.currentTarget.style.transform = 'translateX(0)'
+                e.currentTarget.style.boxShadow = 'none'
+              }}
               title={isWeb ? `打开网页: ${src.url}` : '点击查看文档原文对应位置'}
             >
+              {/* Left accent bar on hover */}
+              <div className="absolute left-0 top-0 bottom-0 w-0.5 transition-all duration-300 opacity-0 group-hover/source:opacity-100"
+                   style={{ background: isWeb ? '#16a34a' : 'var(--accent-blue)' }} />
+
               <div className="flex items-center justify-between">
                 <span
                   className={`text-xs font-medium truncate max-w-[65%] transition-colors flex items-center gap-1.5 ${
@@ -74,7 +104,7 @@ export function SourcesPanel({ sources, onClose, onCitationClick }: SourcesPanel
                   className="text-xs flex items-center gap-1"
                   style={{ color: 'var(--text-muted)' }}
                 >
-                  {!isWeb && <span>{(src.score * 100).toFixed(0)}%</span>}
+                  {!isWeb && <span className="font-mono">{(src.score * 100).toFixed(0)}%</span>}
                   <span
                     className="opacity-0 group-hover/source:opacity-100 transition-opacity text-[10px]"
                     style={{ color: isWeb ? '#16a34a' : 'var(--accent-cyan)' }}
@@ -85,12 +115,17 @@ export function SourcesPanel({ sources, onClose, onCitationClick }: SourcesPanel
               </div>
               {!isWeb && (
                 <div
-                  className="w-full h-1 rounded-full overflow-hidden"
+                  className="w-full h-1.5 rounded-full overflow-hidden"
                   style={{ background: 'var(--bg-input)' }}
                 >
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-[var(--accent-blue)] to-[var(--accent-cyan)]"
-                    style={{ width: `${src.score * 100}%` }}
+                  <motion.div
+                    className="h-full rounded-full"
+                    style={{
+                      background: 'linear-gradient(90deg, var(--accent-blue), var(--accent-cyan))',
+                    }}
+                    initial={{ width: 0 }}
+                    animate={{ width: `${src.score * 100}%` }}
+                    transition={{ duration: 0.8, delay: i * 0.06, ease: [0.4, 0, 0.2, 1] }}
                   />
                 </div>
               )}

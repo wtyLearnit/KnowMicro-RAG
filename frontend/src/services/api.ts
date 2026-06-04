@@ -6,6 +6,8 @@ import type {
   DocumentPreview, TrashData, SourceItem,
   UserModelConfig, ModelTestResult, ActiveConfigs,
   FetchModelsResult, BatchAddResult, WebSearchTestResult,
+  Course, ScheduleTask, ScheduleEvent, CalendarEvent,
+  ParsedCourseRecord, PeriodMapping, ParseExcelResponse,
 } from '../types';
 
 const api = axios.create({
@@ -376,3 +378,104 @@ export const restoreDocument = (id: string) =>
 
 export const restoreConversation = (id: string) =>
   api.post(`/trash/conversations/${id}/restore`);
+
+// ══════════════════════════════════════════════════
+//  Schedule: Courses
+// ══════════════════════════════════════════════════
+
+export const listCourses = () =>
+  api.get<Course[]>('/schedule/courses').then(r => r.data);
+
+export const createCourse = (data: {
+  name: string; day_of_week: number; start_time: string; end_time: string;
+  location?: string; teacher?: string; color?: string; weeks?: string; semester_start?: string;
+}) => api.post<Course>('/schedule/courses', data).then(r => r.data);
+
+export const updateCourse = (id: string, data: Partial<{
+  name: string; day_of_week: number; start_time: string; end_time: string;
+  location: string; teacher: string; color: string; weeks: string; semester_start: string;
+}>) => api.put<Course>(`/schedule/courses/${id}`, data).then(r => r.data);
+
+export const deleteCourse = (id: string) =>
+  api.delete(`/schedule/courses/${id}`);
+
+export const toggleCourse = (id: string) =>
+  api.patch<Course>(`/schedule/courses/${id}/toggle`).then(r => r.data);
+
+export const parseExcel = (file: File) => {
+  const form = new FormData();
+  form.append('file', file);
+  return api.post<ParseExcelResponse>('/schedule/courses/parse-excel', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then(r => r.data);
+};
+
+export const parseIcs = (file: File) => {
+  const form = new FormData();
+  form.append('file', file);
+  return api.post<{ records: ParsedCourseRecord[]; period_mapping: PeriodMapping[] }>(
+    '/schedule/courses/parse-ics', form, { headers: { 'Content-Type': 'multipart/form-data' } },
+  ).then(r => r.data);
+};
+
+export const parseText = (text: string) =>
+  api.post<{ records: ParsedCourseRecord[]; period_mapping: PeriodMapping[] }>(
+    '/schedule/courses/parse-text', { text },
+  ).then(r => r.data);
+
+export const importCourses = (data: {
+  records: ParsedCourseRecord[]; semester_start: string; period_mapping: PeriodMapping[];
+}) => api.post<{ created: number; skipped: number }>('/schedule/courses/import', data).then(r => r.data);
+
+// ══════════════════════════════════════════════════
+//  Schedule: Tasks
+// ══════════════════════════════════════════════════
+
+export const listScheduleTasks = (status?: string) =>
+  api.get<ScheduleTask[]>('/schedule/tasks', { params: status ? { status } : {} }).then(r => r.data);
+
+export const createScheduleTask = (data: {
+  title: string; description?: string; estimated_minutes?: number;
+  priority?: string; tags?: string[]; due_date?: string;
+}) => api.post<ScheduleTask>('/schedule/tasks', data).then(r => r.data);
+
+export const updateScheduleTask = (id: string, data: Partial<{
+  title: string; description: string; estimated_minutes: number;
+  priority: string; tags: string[]; due_date: string;
+}>) => api.put<ScheduleTask>(`/schedule/tasks/${id}`, data).then(r => r.data);
+
+export const deleteScheduleTask = (id: string) =>
+  api.delete(`/schedule/tasks/${id}`);
+
+export const completeScheduleTask = (id: string) =>
+  api.patch<ScheduleTask>(`/schedule/tasks/${id}/complete`).then(r => r.data);
+
+// ══════════════════════════════════════════════════
+//  Schedule: Events
+// ══════════════════════════════════════════════════
+
+export const listScheduleEvents = (start: string, end: string) =>
+  api.get<ScheduleEvent[]>('/schedule/events', { params: { start, end } }).then(r => r.data);
+
+export const createScheduleEvent = (data: {
+  title: string; description?: string; start_time: string; end_time: string;
+  event_type?: string; color?: string; task_id?: string; all_day?: boolean;
+}) => api.post<ScheduleEvent>('/schedule/events', data).then(r => r.data);
+
+export const updateScheduleEvent = (id: string, data: Partial<{
+  title: string; description: string; start_time: string; end_time: string;
+  color: string; is_completed: boolean;
+}>) => api.put<ScheduleEvent>(`/schedule/events/${id}`, data).then(r => r.data);
+
+export const deleteScheduleEvent = (id: string) =>
+  api.delete(`/schedule/events/${id}`);
+
+export const rescheduleEvent = (id: string, start_time: string, end_time: string) =>
+  api.patch<ScheduleEvent>(`/schedule/events/${id}/reschedule`, { start_time, end_time }).then(r => r.data);
+
+// ══════════════════════════════════════════════════
+//  Schedule: Calendar (混合查询)
+// ══════════════════════════════════════════════════
+
+export const getCalendarEvents = (start: string, end: string) =>
+  api.get<CalendarEvent[]>('/schedule/calendar', { params: { start, end } }).then(r => r.data);

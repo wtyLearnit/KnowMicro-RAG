@@ -297,11 +297,13 @@ export function KnowledgeBasePage() {
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.95 }}
                     onClick={() => setSelectedCollectionId(col.id)}
-                    className="glass-card-hover flex items-center justify-between group"
+                    className="glass-card-hover flex items-center justify-between group relative overflow-hidden"
                     style={{
                       borderColor: isSelected ? 'var(--accent-blue)' : undefined,
-                      background: isSelected ? 'rgba(59,130,246,0.08)' : undefined,
-                      boxShadow: isSelected ? '0 0 0 1px var(--accent-blue)' : undefined,
+                      background: isSelected
+                        ? 'linear-gradient(135deg, rgba(59,130,246,0.1), rgba(167,139,250,0.04))'
+                        : undefined,
+                      boxShadow: isSelected ? '0 0 20px rgba(59,130,246,0.12), 0 0 0 1px rgba(59,130,246,0.4)' : undefined,
                     }}
                   >
                     <div className="flex items-center gap-3 min-w-0">
@@ -388,10 +390,13 @@ export function KnowledgeBasePage() {
                 onDragLeave={handleDragLeave}
                 onDragOver={handleDragOver}
                 onDrop={handleDrop}
-                className="relative rounded-xl border-2 border-dashed transition-all duration-300 p-6 text-center"
+                className="relative rounded-xl border-2 border-dashed transition-all duration-300 p-6 text-center group/drop"
                 style={{
                   borderColor: isDragging ? 'var(--accent-blue)' : 'var(--border-glass)',
-                  background: isDragging ? 'rgba(59,130,246,0.06)' : 'var(--bg-input)',
+                  background: isDragging
+                    ? 'linear-gradient(135deg, rgba(59,130,246,0.08), rgba(167,139,250,0.04))'
+                    : 'var(--bg-input)',
+                  boxShadow: isDragging ? '0 0 30px rgba(59,130,246,0.12)' : 'none',
                 }}
               >
                 <AnimatePresence>
@@ -402,23 +407,29 @@ export function KnowledgeBasePage() {
                       exit={{ opacity: 0 }}
                       className="absolute inset-0 rounded-xl pointer-events-none"
                       style={{
-                        background: 'rgba(59,130,246,0.08)',
+                        background: 'rgba(59,130,246,0.06)',
                         border: '2px solid var(--accent-blue)',
+                        boxShadow: 'inset 0 0 20px rgba(59,130,246,0.08)',
                       }}
                     />
                   )}
                 </AnimatePresence>
 
-                <Upload
-                  size={28}
-                  className="mx-auto mb-2"
-                  style={{ color: isDragging ? 'var(--accent-blue)' : 'var(--text-dim)' }}
-                />
-                <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                <motion.div
+                  animate={isDragging ? { y: [0, -6, 0], scale: [1, 1.05, 1] } : {}}
+                  transition={{ duration: 1.5, repeat: isDragging ? Infinity : 0 }}
+                >
+                  <Upload
+                    size={28}
+                    className="mx-auto mb-2 transition-colors duration-300"
+                    style={{ color: isDragging ? 'var(--accent-blue)' : 'var(--text-dim)' }}
+                  />
+                </motion.div>
+                <p className="text-sm" style={{ color: isDragging ? 'var(--accent-blue)' : 'var(--text-secondary)' }}>
                   {isDragging ? '松开鼠标即可上传' : '拖拽文件到此处上传'}
                 </p>
                 <p className="text-xs mt-1" style={{ color: 'var(--text-dim)' }}>
-                  支持 PDF、TXT、Markdown、DOCX 格式，可多选
+                  支持 PDF、TXT、Markdown、DOCX、PPTX 格式，可多选
                 </p>
               </div>
 
@@ -495,7 +506,7 @@ export function KnowledgeBasePage() {
                         className="flex items-center gap-3 min-w-0 cursor-pointer flex-1"
                         onClick={() => doc.status === 'ready' && setPreviewDocId(doc.id)}
                       >
-                        <div className="w-10 h-10 rounded-lg flex items-center justify-center"
+                        <div className="w-10 h-10 rounded-lg flex items-center justify-center transition-transform duration-300 group-hover:scale-110"
                              style={{ background: 'var(--bg-input)', border: '1px solid var(--border-glass)' }}>
                           <FileText size={18} style={{ color: 'var(--text-secondary)' }} />
                         </div>
@@ -535,8 +546,8 @@ export function KnowledgeBasePage() {
                             >
                               <ExternalLink size={14} />
                             </a>
-                            <span className="text-xs px-2 py-0.5 rounded-full"
-                                  style={{ background: 'rgba(34,211,238,0.1)', color: 'var(--accent-cyan)' }}>
+                            <span className="text-xs px-2 py-0.5 rounded-full animate-pulse-soft"
+                                  style={{ background: 'rgba(34,211,238,0.12)', color: 'var(--accent-cyan)', boxShadow: '0 0 8px rgba(34,211,238,0.15)' }}>
                               就绪
                             </span>
                           </>

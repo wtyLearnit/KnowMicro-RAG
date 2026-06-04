@@ -165,6 +165,12 @@
   --separator-active: rgba(190, 24, 93, 0.42);
 }
 
+/* ── Keyframes used in utility classes ── */
+@keyframes gradientX {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
 @layer base {
   * {
     scrollbar-width: thin;
@@ -256,16 +262,18 @@
            font-medium
            inline-flex items-center justify-center gap-2
            transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed;
-    background-color: var(--accent-blue);
+    background: linear-gradient(135deg, var(--accent-blue), color-mix(in srgb, var(--accent-blue) 80%, var(--accent-purple)));
     box-shadow: 0 4px 14px rgba(59, 130, 246, 0.25);
   }
   .btn-primary:hover {
-    background-color: var(--accent-blue);
-    filter: brightness(1.1);
-    box-shadow: 0 6px 20px rgba(59, 130, 246, 0.35);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--accent-blue) 90%, var(--accent-cyan)), var(--accent-blue));
+    filter: brightness(1.08);
+    box-shadow: 0 6px 24px rgba(59, 130, 246, 0.35);
+    transform: translateY(-1px);
   }
   .btn-primary:active {
     filter: brightness(0.95);
+    transform: translateY(0);
   }
 
   .btn-secondary {
@@ -319,12 +327,13 @@
 
   .glass-card-hover {
     @apply glass-card cursor-pointer;
+    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
   }
   .glass-card-hover:hover {
     background-color: var(--bg-card-hover);
     border-color: var(--border-hover);
-    box-shadow: var(--shadow-card), 0 0 20px rgba(59, 130, 246, 0.05);
-    transform: translateY(-2px);
+    box-shadow: var(--shadow-card), 0 0 30px rgba(59, 130, 246, 0.08);
+    transform: translateY(-3px);
   }
 
   [data-theme="xuan"] .glass-panel {
@@ -473,3 +482,140 @@
 .hover-bg-card:hover { background: var(--bg-card-hover) !important; }
 .hover-bg-accent:hover { background: rgba(59,130,246,0.08) !important; }
 .hover-border-accent:hover { border-color: var(--accent-blue) !important; }
+
+/* ── Gradient text utility ── */
+.gradient-text {
+  background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple), var(--accent-cyan));
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: gradientX 4s ease infinite;
+}
+
+[data-theme="light"] .gradient-text {
+  background: linear-gradient(135deg, #2563EB, #7C3AED, #0891B2);
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+[data-theme="xuan"] .gradient-text {
+  background: linear-gradient(135deg, #1A4A6E, #6B3A5C, #2D6A4F);
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+[data-theme="forest"] .gradient-text {
+  background: linear-gradient(135deg, #166534, #0F766E, #7C3AED);
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+[data-theme="rose"] .gradient-text {
+  background: linear-gradient(135deg, #BE185D, #C2410C, #7E22CE);
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Shimmer effect for glass cards on hover ── */
+.glass-card-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.glass-card-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 40%,
+    rgba(255,255,255,0.03) 45%,
+    rgba(255,255,255,0.06) 50%,
+    rgba(255,255,255,0.03) 55%,
+    transparent 60%
+  );
+  background-size: 200% 100%;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+.glass-card-shimmer:hover::after {
+  opacity: 1;
+  animation: shimmer 2s ease-in-out;
+}
+
+/* ── Glow ring effect for stat cards ── */
+.glow-ring {
+  position: relative;
+}
+.glow-ring::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  padding: 2px;
+  background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple), var(--accent-cyan));
+  background-size: 300% 300%;
+  animation: borderDance 4s linear infinite;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.4s;
+  pointer-events: none;
+}
+.glow-ring:hover::before {
+  opacity: 1;
+}
+
+/* ── Active nav indicator ── */
+.nav-indicator {
+  position: absolute;
+  left: 0;
+  width: 3px;
+  border-radius: 0 4px 4px 0;
+  background: linear-gradient(180deg, var(--accent-blue), var(--accent-cyan));
+  box-shadow: 0 0 12px rgba(59,130,246,0.4);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Message bubble left accent for assistant ── */
+.msg-assistant-accent {
+  border-left: 2px solid transparent;
+  border-image: linear-gradient(180deg, var(--accent-blue), var(--accent-purple)) 1;
+}
+
+/* ── Typing cursor blink ── */
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+.typing-cursor::after {
+  content: '▊';
+  animation: blink 1s step-end infinite;
+  color: var(--accent-blue);
+  font-size: 0.9em;
+  margin-left: 2px;
+}
+
+/* ── Header gradient separator ── */
+.header-gradient-border {
+  position: relative;
+}
+.header-gradient-border::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple), transparent);
+  opacity: 0.3;
+}

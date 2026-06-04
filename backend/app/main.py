@@ -18,6 +18,7 @@ from app.api.chat import chat_router, search_router, conv_router
 from app.api.trash import router as trash_router
 from app.api.system import router as system_router
 from app.api.model_configs import router as model_configs_router
+from app.api.schedule import schedule_router
 
 logger = logging.getLogger("Socratess_window")
 
@@ -104,6 +105,7 @@ app.include_router(conv_router)
 app.include_router(trash_router)
 app.include_router(system_router)
 app.include_router(model_configs_router)
+app.include_router(schedule_router)
 
 
 @app.get("/")

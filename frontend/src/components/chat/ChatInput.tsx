@@ -144,19 +144,27 @@ export function ChatInput({
       {!isOrphanedConv && (
         <div className="mb-3 flex shrink-0 items-center gap-3">
           <div
-            className="flex shrink-0 rounded-lg p-1"
+            className="relative flex shrink-0 rounded-lg p-1"
             style={{ background: 'var(--bg-input)', border: '1px solid var(--border-glass)' }}
           >
+            {/* Sliding indicator */}
+            <div
+              className="absolute top-1 bottom-1 rounded-md transition-all duration-300 ease-out"
+              style={{
+                background: 'var(--accent-blue)',
+                boxShadow: '0 2px 10px rgba(59,130,246,0.3)',
+                left: mode === 'socratic' ? '4px' : '50%',
+                width: 'calc(50% - 4px)',
+              }}
+            />
             <button
               onClick={() => {
                 onModeChange('socratic')
                 localStorage.setItem('chatMode', 'socratic')
               }}
-              className="min-h-8 px-3.5 py-1.5 rounded-md text-xs font-medium transition-all duration-200"
+              className="relative z-10 min-h-8 px-3.5 py-1.5 rounded-md text-xs font-medium transition-colors duration-200"
               style={{
-                background: mode === 'socratic' ? 'var(--accent-blue)' : 'transparent',
                 color: mode === 'socratic' ? '#fff' : 'var(--text-secondary)',
-                boxShadow: mode === 'socratic' ? '0 2px 8px rgba(59,130,246,0.3)' : 'none',
               }}
             >
               苏格拉底式
@@ -166,11 +174,9 @@ export function ChatInput({
                 onModeChange('direct')
                 localStorage.setItem('chatMode', 'direct')
               }}
-              className="min-h-8 px-3.5 py-1.5 rounded-md text-xs font-medium transition-all duration-200"
+              className="relative z-10 min-h-8 px-3.5 py-1.5 rounded-md text-xs font-medium transition-colors duration-200"
               style={{
-                background: mode === 'direct' ? 'var(--accent-blue)' : 'transparent',
                 color: mode === 'direct' ? '#fff' : 'var(--text-secondary)',
-                boxShadow: mode === 'direct' ? '0 2px 8px rgba(59,130,246,0.3)' : 'none',
               }}
             >
               直接问答
@@ -313,7 +319,7 @@ export function ChatInput({
                     : '输入消息...'
             }
             rows={3}
-            className="block h-full min-h-[64px] w-full resize-none rounded-lg border px-4 py-3 text-[15px] leading-6 outline-none transition-all duration-200 focus:ring-2"
+            className="block h-full min-h-[64px] w-full resize-none rounded-lg border px-4 py-3 text-[15px] leading-6 outline-none transition-all duration-300 focus:ring-2 focus:ring-[var(--accent-blue)]/20 focus:border-[var(--accent-blue)]/40"
             disabled={isDisabled}
             style={{
               background: 'var(--bg-input)',
@@ -442,24 +448,41 @@ export function ChatInput({
           <button
             onClick={onSend}
             disabled={isDisabled || !input.trim()}
-            className="flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg px-5 text-sm font-medium transition-all duration-200 lg:min-w-[96px]"
+            className="flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg px-5 text-sm font-medium transition-all duration-300 lg:min-w-[96px] group/send"
             style={{
               background: isDisabled || !input.trim()
                 ? 'var(--bg-input)'
-                : 'linear-gradient(135deg, var(--accent-blue), var(--accent-cyan))',
+                : 'linear-gradient(135deg, var(--accent-blue), var(--accent-purple))',
+              backgroundSize: '200% 200%',
               border: '1px solid var(--border-glass)',
               color: isDisabled || !input.trim() ? 'var(--text-dim)' : '#fff',
               cursor: isDisabled || !input.trim() ? 'not-allowed' : 'pointer',
               boxShadow:
                 !isDisabled && input.trim()
-                  ? '0 8px 22px rgba(59,130,246,0.24)'
+                  ? '0 8px 24px rgba(59,130,246,0.28)'
                   : 'none',
+            }}
+            onMouseEnter={(e) => {
+              if (!isDisabled && input.trim()) {
+                e.currentTarget.style.background = 'linear-gradient(135deg, var(--accent-cyan), var(--accent-blue))'
+                e.currentTarget.style.backgroundSize = '200% 200%'
+                e.currentTarget.style.boxShadow = '0 8px 30px rgba(59,130,246,0.35)'
+                e.currentTarget.style.transform = 'translateY(-1px)'
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isDisabled && input.trim()) {
+                e.currentTarget.style.background = 'linear-gradient(135deg, var(--accent-blue), var(--accent-purple))'
+                e.currentTarget.style.backgroundSize = '200% 200%'
+                e.currentTarget.style.boxShadow = '0 8px 24px rgba(59,130,246,0.28)'
+                e.currentTarget.style.transform = 'translateY(0)'
+              }
             }}
           >
             {streaming || regeneratingMsgId ? (
               <Loader2 size={17} className="animate-spin" />
             ) : (
-              <Send size={17} />
+              <Send size={17} className="transition-transform duration-200 group-hover/send:translate-x-0.5 group-hover/send:-translate-y-0.5" />
             )}
             <span>发送</span>
           </button>

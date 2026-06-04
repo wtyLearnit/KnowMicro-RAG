@@ -535,13 +535,21 @@ export function ChatPage() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
             className="text-center space-y-6"
           >
-            <div className="w-20 h-20 mx-auto rounded-2xl bg-gradient-to-br from-[var(--accent-blue)]/20 to-[var(--accent-purple)]/20
-                          flex items-center justify-center"
-                 style={{ border: '1px solid var(--border-hover)' }}>
+            <motion.div
+              className="w-20 h-20 mx-auto rounded-2xl flex items-center justify-center"
+              style={{
+                background: 'linear-gradient(135deg, rgba(59,130,246,0.15), rgba(167,139,250,0.1))',
+                border: '1px solid var(--border-hover)',
+                boxShadow: '0 0 30px rgba(59,130,246,0.1)',
+              }}
+              animate={{ y: [0, -6, 0] }}
+              transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+            >
               <BookOpen size={36} className="text-[var(--accent-blue)]" />
-            </div>
+            </motion.div>
             <div>
               <p className="text-xl font-serif" style={{ color: 'var(--text-primary)' }}>开始你的对话</p>
               <p className="text-sm mt-2" style={{ color: 'var(--text-muted)' }}>
@@ -1034,11 +1042,28 @@ export function ChatPage() {
                     animate={{ opacity: 1 }}
                     className="flex items-center justify-center h-full"
                   >
-                    <div className="text-center space-y-3">
-                      <Sparkles size={32} className="mx-auto" style={{ color: 'var(--text-dim)' }} />
-                      <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-                        向苏格拉底提问，开始你的探索之旅
-                      </p>
+                    <div className="text-center space-y-4">
+                      <motion.div
+                        className="relative mx-auto w-16 h-16 flex items-center justify-center"
+                        animate={{ y: [0, -8, 0] }}
+                        transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+                      >
+                        {/* Outer glow ring */}
+                        <div className="absolute inset-0 rounded-full"
+                             style={{
+                               background: 'radial-gradient(circle, rgba(59,130,246,0.12) 0%, transparent 70%)',
+                               transform: 'scale(1.8)',
+                             }} />
+                        <Sparkles size={32} style={{ color: 'var(--accent-blue)' }} />
+                      </motion.div>
+                      <div>
+                        <p className="text-base font-medium" style={{ color: 'var(--text-secondary)' }}>
+                          向苏格拉底提问
+                        </p>
+                        <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
+                          开始你的探索之旅
+                        </p>
+                      </div>
                     </div>
                   </motion.div>
                 )}
@@ -1048,20 +1073,22 @@ export function ChatPage() {
                     <motion.div
                       key={msg.id}
                       id={`msg-${msg.id}`}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.3 }}
+                      initial={{ opacity: 0, x: msg.role === 'user' ? 20 : -20, y: 8 }}
+                      animate={{ opacity: 1, x: 0, y: 0 }}
+                      transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
                       className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
                       <div className={`max-w-[80%] group/msg ${msg.role === 'user' ? 'order-1' : ''}`}>
                         <div
-                          className="rounded-2xl px-5 py-3.5"
+                          className={`rounded-2xl px-5 py-3.5 ${msg.role === 'assistant' ? 'msg-assistant-accent' : ''}`}
                           style={{
-                            background: msg.role === 'user' ? 'rgba(59,130,246,0.15)' : 'var(--bg-card)',
+                            background: msg.role === 'user'
+                              ? 'linear-gradient(135deg, rgba(59,130,246,0.15), rgba(167,139,250,0.08))'
+                              : 'var(--bg-card)',
                             border: msg.role === 'user' ? '1px solid rgba(59,130,246,0.2)' : '1px solid var(--border-glass)',
                             borderBottomRightRadius: msg.role === 'user' ? '6px' : undefined,
                             borderBottomLeftRadius: msg.role === 'assistant' ? '6px' : undefined,
-                            boxShadow: msg.role === 'user' ? 'none' : 'var(--shadow-inset), var(--shadow-card)',
+                            boxShadow: msg.role === 'user' ? '0 2px 12px rgba(59,130,246,0.06)' : 'var(--shadow-inset), var(--shadow-card)',
                             backdropFilter: msg.role === 'assistant' ? 'blur(20px)' : undefined,
                           }}
                         >

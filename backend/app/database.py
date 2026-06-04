@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime, timezone
 from sqlalchemy import (
     Column, String, Text, DateTime, Integer, Float, ForeignKey, JSON, Index,
-    select, func,
+    Boolean, select, func,
 )
 from sqlalchemy.orm import DeclarativeBase, relationship
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
@@ -124,6 +124,71 @@ class UserModelConfig(Base):
     __table_args__ = (
         Index("idx_umc_config_type", "config_type"),
         Index("idx_umc_active", "config_type", "is_active"),
+    )
+
+
+# ── Course (课程表) ────────────────────────────────
+class Course(Base):
+    __tablename__ = "courses"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String(200), nullable=False)
+    day_of_week = Column(Integer, nullable=False)          # 0=周日 1=周一 ... 6=周六
+    start_time = Column(String(5), nullable=False)         # "08:00"
+    end_time = Column(String(5), nullable=False)           # "09:40"
+    location = Column(String(200), default="")
+    teacher = Column(String(100), default="")
+    color = Column(String(20), default="#4A90D9")
+    weeks = Column(String(200), default="1-16")            # "1,3,5,7-15"
+    semester_start = Column(String(10), default="")        # "2026-02-24"
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index("idx_course_active", "is_active"),
+    )
+
+
+# ── Task (待办任务) ────────────────────────────────
+class Task(Base):
+    __tablename__ = "tasks"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    title = Column(String(200), nullable=False)
+    description = Column(Text, default="")
+    estimated_minutes = Column(Integer, default=60)
+    priority = Column(String(10), default="medium")        # low / medium / high
+    status = Column(String(20), default="pending")         # pending / scheduled / completed
+    tags = Column(JSON, default=list)
+    due_date = Column(String(10), nullable=True)           # "2026-06-15"
+    scheduled_event_id = Column(String(36), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index("idx_task_status", "status"),
+    )
+
+
+# ── ScheduleEvent (日程事件) ───────────────────────
+class ScheduleEvent(Base):
+    __tablename__ = "schedule_events"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    title = Column(String(200), nullable=False)
+    description = Column(Text, default="")
+    start_time = Column(DateTime, nullable=False)
+    end_time = Column(DateTime, nullable=False)
+    event_type = Column(String(20), default="custom")      # course / task / custom
+    color = Column(String(20), default="#4A90D9")
+    course_id = Column(String(36), nullable=True)
+    task_id = Column(String(36), nullable=True)
+    all_day = Column(Boolean, default=False)
+    is_completed = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index("idx_event_time", "start_time", "end_time"),
+        Index("idx_event_type", "event_type"),
     )
 
 

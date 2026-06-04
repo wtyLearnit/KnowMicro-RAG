@@ -10,6 +10,7 @@ import { KnowledgeBasePage } from './pages/KnowledgeBasePage'
 // Non-critical pages loaded on demand (reduces initial bundle size)
 const SettingsPage = lazy(() => import('./pages/SettingsPage.lazy'))
 const TrashPage = lazy(() => import('./pages/TrashPage.lazy'))
+const CalendarPage = lazy(() => import('./pages/CalendarPage.lazy'))
 
 /** Minimal fallback shown while lazy-loaded pages are downloading. */
 function PageFallback() {
@@ -35,6 +36,7 @@ export default function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/chat/:collectionId?" element={<ChatPage />} />
             <Route path="/knowledge" element={<KnowledgeBasePage />} />
+            <Route path="/schedule" element={<CalendarPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/trash" element={<TrashPage />} />
           </Routes>

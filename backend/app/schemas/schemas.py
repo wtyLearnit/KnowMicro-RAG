@@ -357,5 +357,177 @@ class WebSearchTestResponse(BaseModel):
     success: bool
     latency_ms: int = 0
     result_count: int = 0
+
+
+# ── Schedule: Course ───────────────────────────────
+class CourseCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=200)
+    day_of_week: int = Field(..., ge=0, le=6)
+    start_time: str = Field(..., pattern=r"^\d{2}:\d{2}$")
+    end_time: str = Field(..., pattern=r"^\d{2}:\d{2}$")
+    location: str = ""
+    teacher: str = ""
+    color: str = "#4A90D9"
+    weeks: str = "1-16"
+    semester_start: str = ""
+
+
+class CourseUpdate(BaseModel):
+    name: Optional[str] = None
+    day_of_week: Optional[int] = None
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+    location: Optional[str] = None
+    teacher: Optional[str] = None
+    color: Optional[str] = None
+    weeks: Optional[str] = None
+    semester_start: Optional[str] = None
+
+
+class CourseOut(BaseModel):
+    model_config = {"from_attributes": True}
+    id: str
+    name: str
+    day_of_week: int
+    start_time: str
+    end_time: str
+    location: str
+    teacher: str
+    color: str
+    weeks: str
+    semester_start: str
+    is_active: bool
+    created_at: datetime
+
+
+# ── Schedule: Task ─────────────────────────────────
+class TaskCreate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200)
+    description: str = ""
+    estimated_minutes: int = Field(60, ge=5, le=480)
+    priority: str = Field("medium", pattern=r"^(low|medium|high)$")
+    tags: List[str] = []
+    due_date: Optional[str] = None
+
+
+class TaskUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    estimated_minutes: Optional[int] = None
+    priority: Optional[str] = None
+    tags: Optional[List[str]] = None
+    due_date: Optional[str] = None
+
+
+class TaskOut(BaseModel):
+    model_config = {"from_attributes": True}
+    id: str
+    title: str
+    description: str
+    estimated_minutes: int
+    priority: str
+    status: str
+    tags: List[str]
+    due_date: Optional[str]
+    scheduled_event_id: Optional[str]
+    created_at: datetime
+
+
+# ── Schedule: Event ────────────────────────────────
+class EventCreate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200)
+    description: str = ""
+    start_time: datetime
+    end_time: datetime
+    event_type: str = Field("custom", pattern=r"^(course|task|custom)$")
+    color: str = "#4A90D9"
+    course_id: Optional[str] = None
+    task_id: Optional[str] = None
+    all_day: bool = False
+
+
+class EventUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    color: Optional[str] = None
+    all_day: Optional[bool] = None
+    is_completed: Optional[bool] = None
+
+
+class EventReschedule(BaseModel):
+    start_time: datetime
+    end_time: datetime
+
+
+class EventOut(BaseModel):
+    model_config = {"from_attributes": True}
+    id: str
+    title: str
+    description: str
+    start_time: datetime
+    end_time: datetime
+    event_type: str
+    color: str
+    course_id: Optional[str]
+    task_id: Optional[str]
+    all_day: bool
+    is_completed: bool
+    created_at: datetime
+
+
+class CalendarEventOut(BaseModel):
+    """日历混合查询输出：真实事件 + 课表虚拟事件。"""
+    id: str
+    title: str
+    description: str
+    start_time: datetime
+    end_time: datetime
+    event_type: str
+    color: str
+    course_id: Optional[str] = None
+    task_id: Optional[str] = None
+    all_day: bool = False
+    is_completed: bool = False
+    is_virtual: bool = False  # True = 由课表自动生成，不存在于 events 表
+
+
+# ── Schedule: Import ───────────────────────────────
+class ParsedCourseRecord(BaseModel):
+    name: str
+    day_of_week: int
+    start_period: int
+    end_period: int
+    teacher: str = ""
+    location: str = ""
+    weeks: str = "1-16"
+
+
+class PeriodMapping(BaseModel):
+    periods: str
+    start_time: str
+    end_time: str
+
+
+class ParseExcelResponse(BaseModel):
+    format: str  # "list" or "grid"
+    records: List[ParsedCourseRecord]
+    period_mapping: List[PeriodMapping]
+
+
+class ParseIcsResponse(BaseModel):
+    records: List[ParsedCourseRecord]
+    period_mapping: List[PeriodMapping]
+
+
+class ParseTextRequest(BaseModel):
+    text: str
+
+
+class ImportCoursesRequest(BaseModel):
+    records: List[ParsedCourseRecord]
+    semester_start: str
+    period_mapping: List[PeriodMapping]
     message: str = ""
     error: Optional[str] = None

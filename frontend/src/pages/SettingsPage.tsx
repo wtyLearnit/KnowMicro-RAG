@@ -98,41 +98,57 @@ export function SettingsPage() {
 
       {/* Tab Navigation */}
       <motion.div variants={item} className="glass-card !p-1.5">
-        <div className="flex rounded-lg" style={{ background: 'var(--bg-input)' }}>
-          {[
-            { id: 'appearance' as const, label: '外观', icon: Palette },
-            { id: 'config' as const, label: '系统配置', icon: Cpu },
-            { id: 'stats' as const, label: '系统状态', icon: Zap },
-            { id: 'prompt' as const, label: '系统提示词', icon: BookOpen },
-          ].map(tab => {
-            const Icon = tab.icon
-            const isActive = activeTab === tab.id
+        <div className="relative flex rounded-lg" style={{ background: 'var(--bg-input)' }}>
+          {(() => {
+            const tabs = [
+              { id: 'appearance' as const, label: '外观', icon: Palette },
+              { id: 'config' as const, label: '系统配置', icon: Cpu },
+              { id: 'stats' as const, label: '系统状态', icon: Zap },
+              { id: 'prompt' as const, label: '系统提示词', icon: BookOpen },
+            ]
+            const activeIndex = tabs.findIndex(t => t.id === activeTab)
             return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-md text-sm font-medium transition-all duration-200"
-                style={{
-                  background: isActive ? 'var(--accent-blue)' : 'transparent',
-                  color: isActive ? '#fff' : 'var(--text-secondary)',
-                  boxShadow: isActive ? '0 2px 8px rgba(59,130,246,0.3)' : 'none',
-                }}
-                onMouseEnter={(e) => {
-                  if (!isActive) {
-                    e.currentTarget.style.color = 'var(--text-primary)'
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!isActive) {
-                    e.currentTarget.style.color = 'var(--text-secondary)'
-                  }
-                }}
-              >
-                <Icon size={16} />
-                <span className="hidden sm:inline">{tab.label}</span>
-              </button>
+              <>
+                {/* Sliding indicator */}
+                <div
+                  className="absolute top-1 bottom-1 rounded-md transition-all duration-300 ease-out"
+                  style={{
+                    background: 'linear-gradient(135deg, var(--accent-blue), var(--accent-purple))',
+                    boxShadow: '0 2px 10px rgba(59,130,246,0.3)',
+                    left: `calc(${activeIndex * 25}% + 4px)`,
+                    width: 'calc(25% - 8px)',
+                  }}
+                />
+                {tabs.map(tab => {
+                  const Icon = tab.icon
+                  const isActive = activeTab === tab.id
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      className="relative z-10 flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-md text-sm font-medium transition-colors duration-200"
+                      style={{
+                        color: isActive ? '#fff' : 'var(--text-secondary)',
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isActive) {
+                          e.currentTarget.style.color = 'var(--text-primary)'
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isActive) {
+                          e.currentTarget.style.color = 'var(--text-secondary)'
+                        }
+                      }}
+                    >
+                      <Icon size={16} />
+                      <span className="hidden sm:inline">{tab.label}</span>
+                    </button>
+                  )
+                })}
+              </>
             )
-          })}
+          })()}
         </div>
       </motion.div>
 
@@ -162,7 +178,7 @@ export function SettingsPage() {
                       key={t.id}
                       onClick={() => setTheme(t.id)}
                       className={`
-                        min-h-[132px] relative rounded-lg p-4 text-left transition-all duration-300
+                        min-h-[132px] relative rounded-lg p-4 text-left transition-all duration-300 overflow-hidden group/theme
                         ${isActive
                           ? 'ring-2 ring-[var(--accent-blue)] shadow-lg'
                           : 'hover:scale-[1.02]'
@@ -173,36 +189,52 @@ export function SettingsPage() {
                           ? 'var(--bg-card-hover)'
                           : 'var(--bg-card)',
                         border: `1px solid ${isActive ? 'var(--accent-blue)' : 'var(--border-glass)'}`,
+                        boxShadow: isActive ? '0 0 24px rgba(59,130,246,0.15)' : 'none',
                       }}
                     >
-                      <div className="flex items-center gap-3 mb-3">
-                        <div className="flex gap-1.5">
-                          {t.colors.map((c, i) => (
-                            <div
-                              key={i}
-                              className="w-5 h-5 rounded-full border"
-                              style={{
-                                backgroundColor: c,
-                                borderColor: 'var(--border-glass)',
-                              }}
-                            />
-                          ))}
-                        </div>
-                        {isActive && (
-                          <div className="ml-auto w-5 h-5 rounded-full bg-[var(--accent-blue)] flex items-center justify-center">
-                            <Check size={12} className="text-white" />
+                      {/* Theme preview gradient overlay */}
+                      <div
+                        className="absolute inset-0 opacity-[0.07] group-hover/theme:opacity-[0.12] transition-opacity duration-300"
+                        style={{
+                          background: `linear-gradient(135deg, ${t.colors[0]}, ${t.colors[2]}, ${t.colors[3]})`,
+                        }}
+                      />
+                      <div className="relative z-10">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="flex gap-1.5">
+                            {t.colors.map((c, i) => (
+                              <div
+                                key={i}
+                                className="w-5 h-5 rounded-full border transition-transform duration-300 group-hover/theme:scale-110"
+                                style={{
+                                  backgroundColor: c,
+                                  borderColor: 'var(--border-glass)',
+                                  transitionDelay: `${i * 50}ms`,
+                                }}
+                              />
+                            ))}
                           </div>
-                        )}
+                          {isActive && (
+                            <motion.div
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                              className="ml-auto w-5 h-5 rounded-full bg-[var(--accent-blue)] flex items-center justify-center"
+                              style={{ boxShadow: '0 0 12px rgba(59,130,246,0.4)' }}
+                            >
+                              <Check size={12} className="text-white" />
+                            </motion.div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <Icon size={16} style={{ color: 'var(--text-secondary)' }} />
+                          <span className="font-medium text-sm" style={{ color: 'var(--text-primary)' }}>
+                            {t.name}
+                          </span>
+                        </div>
+                        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                          {t.desc}
+                        </p>
                       </div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <Icon size={16} style={{ color: 'var(--text-secondary)' }} />
-                        <span className="font-medium text-sm" style={{ color: 'var(--text-primary)' }}>
-                          {t.name}
-                        </span>
-                      </div>
-                      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                        {t.desc}
-                      </p>
                     </button>
                   )
                 })}

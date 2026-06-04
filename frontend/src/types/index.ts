@@ -215,3 +215,76 @@ export interface WebSearchTestResult {
   message: string;
   error?: string;
 }
+
+// ── Schedule: Course ─────────────────────────────
+export interface Course {
+  id: string;
+  name: string;
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+  location: string;
+  teacher: string;
+  color: string;
+  weeks: string;
+  semester_start: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+// ── Schedule: Task ───────────────────────────────
+export interface ScheduleTask {
+  id: string;
+  title: string;
+  description: string;
+  estimated_minutes: number;
+  priority: 'low' | 'medium' | 'high';
+  status: 'pending' | 'scheduled' | 'completed';
+  tags: string[];
+  due_date: string | null;
+  scheduled_event_id: string | null;
+  created_at: string;
+}
+
+// ── Schedule: Event ──────────────────────────────
+export interface ScheduleEvent {
+  id: string;
+  title: string;
+  description: string;
+  start_time: string;
+  end_time: string;
+  event_type: 'course' | 'task' | 'custom';
+  color: string;
+  course_id: string | null;
+  task_id: string | null;
+  all_day: boolean;
+  is_completed: boolean;
+  created_at: string;
+}
+
+export interface CalendarEvent extends ScheduleEvent {
+  is_virtual: boolean;
+}
+
+// ── Schedule: Import ─────────────────────────────
+export interface ParsedCourseRecord {
+  name: string;
+  day_of_week: number;
+  start_period: number;
+  end_period: number;
+  teacher: string;
+  location: string;
+  weeks: string;
+}
+
+export interface PeriodMapping {
+  periods: string;
+  start_time: string;
+  end_time: string;
+}
+
+export interface ParseExcelResponse {
+  format: 'list' | 'grid';
+  records: ParsedCourseRecord[];
+  period_mapping: PeriodMapping[];
+}
