@@ -1,5 +1,5 @@
 /* 苏格拉底之窗 - Calendar Page */
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { CalendarDays } from 'lucide-react'
 import {
@@ -51,7 +51,10 @@ export function CalendarPage() {
     ? { start: startOfWeek(currentDate, { weekStartsOn: 1 }), end: endOfWeek(currentDate, { weekStartsOn: 1 }) }
     : { start: startOfMonth(currentDate), end: endOfMonth(currentDate) }
 
+  const fetchGenRef = useRef(0)
+
   const fetchData = useCallback(async () => {
+    const gen = ++fetchGenRef.current
     setLoading(true)
     try {
       const start = dateRange.start.toISOString()
@@ -61,13 +64,17 @@ export function CalendarPage() {
         listScheduleTasks(),
         listCourses(),
       ])
+      // Ignore stale responses (e.g. if a delete happened while fetching)
+      if (gen !== fetchGenRef.current) return
       setEvents(evts)
       setTasks(tsks)
       setCourses(cors)
     } catch (err) {
-      console.error('Failed to load calendar data:', err)
+      if (gen === fetchGenRef.current) {
+        console.error('Failed to load calendar data:', err)
+      }
     }
-    setLoading(false)
+    if (gen === fetchGenRef.current) setLoading(false)
   }, [dateRange.start, dateRange.end])
 
   useEffect(() => { fetchData() }, [fetchData])
