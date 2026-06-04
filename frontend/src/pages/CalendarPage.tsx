@@ -43,6 +43,9 @@ export function CalendarPage() {
     return localStorage.getItem('showCourses') !== 'false'
   })
 
+  // Drag state — shared between TaskPanel and WeekView/DayColumn
+  const [draggingTask, setDraggingTask] = useState<ScheduleTask | null>(null)
+
   // Calculate date range based on view
   const dateRange = view === 'week'
     ? { start: startOfWeek(currentDate, { weekStartsOn: 1 }), end: endOfWeek(currentDate, { weekStartsOn: 1 }) }
@@ -148,6 +151,7 @@ export function CalendarPage() {
               events={visibleEvents}
               courses={courses}
               showCourses={showCourses}
+              draggingTask={draggingTask}
               onSlotClick={handleSlotClick}
               onEventClick={handleEventClick}
               onEventMoved={fetchData}
@@ -168,6 +172,8 @@ export function CalendarPage() {
           onEditTask={(task) => { setEditingTask(task); setShowTaskModal(true) }}
           onCreateTask={() => { setEditingTask(null); setShowTaskModal(true) }}
           onTaskMoved={fetchData}
+          onDragStart={(task) => setDraggingTask(task)}
+          onDragEnd={() => setDraggingTask(null)}
         />
       </div>
 

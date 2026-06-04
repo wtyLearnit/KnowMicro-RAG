@@ -6,7 +6,7 @@ import { startOfWeek, addDays, format, isToday } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
 import { TimeAxis } from './TimeAxis'
 import { DayColumn } from './DayColumn'
-import type { CalendarEvent, Course } from '../../types'
+import type { CalendarEvent, Course, ScheduleTask } from '../../types'
 
 const HOUR_START = 0
 const HOUR_END = 24
@@ -18,13 +18,14 @@ interface WeekViewProps {
   events: CalendarEvent[]
   courses: Course[]
   showCourses: boolean
+  draggingTask: ScheduleTask | null
   onSlotClick: (date: Date, hour: number) => void
   onEventClick: (event: CalendarEvent) => void
   onEventMoved: () => void
 }
 
 export function WeekView({
-  currentDate, events, courses, showCourses,
+  currentDate, events, courses, showCourses, draggingTask,
   onSlotClick, onEventClick, onEventMoved,
 }: WeekViewProps) {
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 })
@@ -89,6 +90,7 @@ export function WeekView({
                 hourStart={HOUR_START}
                 hourEnd={HOUR_END}
                 hourHeight={HOUR_HEIGHT}
+                draggingTask={draggingTask}
                 onSlotClick={onSlotClick}
                 onEventClick={onEventClick}
                 onEventMoved={onEventMoved}

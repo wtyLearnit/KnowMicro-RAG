@@ -1,8 +1,9 @@
 /**
  * DayColumn — single day column with events and free slots.
+ * Supports drag-and-drop with live time preview.
  */
-import { useMemo, useState } from 'react'
-import { isSameDay, isToday as checkIsToday } from 'date-fns'
+import { useMemo, useState, useRef, useCallback } from 'react'
+import { isSameDay, isToday as checkIsToday, format } from 'date-fns'
 import { EventBlock } from './EventBlock'
 import { CurrentTimeLine } from './CurrentTimeLine'
 import type { CalendarEvent, ScheduleTask } from '../../types'
@@ -14,19 +15,30 @@ interface DayColumnProps {
   hourStart: number
   hourEnd: number
   hourHeight: number
+  draggingTask: ScheduleTask | null
   onSlotClick: (date: Date, hour: number) => void
   onEventClick: (event: CalendarEvent) => void
   onEventMoved: () => void
 }
 
+const PRIORITY_COLORS: Record<string, string> = {
+  high: 'rgb(239, 68, 68)',
+  medium: 'rgb(251,191,36)',
+  low: 'rgb(34,211,238)',
+}
+
 export function DayColumn({
-  date, events, hourStart, hourEnd, hourHeight,
+  date, events, hourStart, hourEnd, hourHeight, draggingTask,
   onSlotClick, onEventClick, onEventMoved,
 }: DayColumnProps) {
   const hourCount = hourEnd - hourStart
   const totalHeight = hourCount * hourHeight
   const today = checkIsToday(date)
-  const [isDragOver, setIsDragOver] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  // ── Drop preview state ──
+  const [dropHour, setDropHour] = useState<number | null>(null)
+  const dropHourRef = useRef<number | null>(null)
 
   // Filter events for this day
   const dayEvents = useMemo(() => {
@@ -36,35 +48,72 @@ export function DayColumn({
     })
   }, [events, date])
 
-  const handleSlotClick = (e: React.MouseEvent<HTMLDivElement>) => {
+  // ── Click ──
+  const didDragRef = useRef(false)
+  const mouseDownRef = useRef<{ x: number; y: number } | null>(null)
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    mouseDownRef.current = { x: e.clientX, y: e.clientY }
+    didDragRef.current = false
+  }
+
+  const handleMouseMoveClick = (e: React.MouseEvent) => {
+    if (!mouseDownRef.current) return
+    const dx = Math.abs(e.clientX - mouseDownRef.current.x)
+    const dy = Math.abs(e.clientY - mouseDownRef.current.y)
+    if (dx > 4 || dy > 4) didDragRef.current = true
+  }
+
+  const handleClick = (e: React.MouseEvent) => {
+    if (didDragRef.current) return
     const rect = e.currentTarget.getBoundingClientRect()
     const y = e.clientY - rect.top
     const hour = hourStart + y / hourHeight
-    const snappedHour = Math.floor(hour * 2) / 2 // Snap to 30min
+    const snappedHour = Math.floor(hour * 2) / 2
     onSlotClick(date, snappedHour)
   }
 
-  // ── Drag & Drop (task → calendar) ──
-  const calcDropHour = (e: React.DragEvent<HTMLDivElement>) => {
+  // ── Drag & Drop ──
+  const calcDropHour = useCallback((e: React.DragEvent) => {
     const rect = e.currentTarget.getBoundingClientRect()
     const y = e.clientY - rect.top
     const hour = hourStart + y / hourHeight
-    return Math.floor(hour * 2) / 2 // Snap to 30min
+    return Math.floor(hour * 2) / 2
+  }, [hourStart, hourHeight])
+
+  const formatHour = (h: number) => {
+    const hh = Math.floor(h)
+    const mm = Math.round((h % 1) * 60)
+    return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
   }
 
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+  const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     e.dataTransfer.dropEffect = 'copy'
-    setIsDragOver(true)
-  }
+    if (!draggingTask) return
 
-  const handleDragLeave = () => {
-    setIsDragOver(false)
-  }
+    const hour = calcDropHour(e)
+    if (dropHourRef.current !== hour) {
+      dropHourRef.current = hour
+      setDropHour(hour)
+    }
+  }, [draggingTask, calcDropHour])
 
-  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    // Only clear if actually leaving the column (not entering a child)
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = e.clientX
+    const y = e.clientY
+    if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+      dropHourRef.current = null
+      setDropHour(null)
+    }
+  }, [])
+
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault()
-    setIsDragOver(false)
+    dropHourRef.current = null
+    setDropHour(null)
 
     const raw = e.dataTransfer.getData('application/json')
     if (!raw) return
@@ -74,11 +123,11 @@ export function DayColumn({
       if (data.type !== 'task' || !data.task) return
 
       const task: ScheduleTask = data.task
-      const dropHour = calcDropHour(e)
+      const hour = calcDropHour(e)
       const durationMinutes = task.estimated_minutes || 60
 
       const start = new Date(date)
-      start.setHours(Math.floor(dropHour), (dropHour % 1) * 60, 0, 0)
+      start.setHours(Math.floor(hour), Math.round((hour % 1) * 60), 0, 0)
       const end = new Date(start.getTime() + durationMinutes * 60000)
 
       await createScheduleEvent({
@@ -88,24 +137,35 @@ export function DayColumn({
         end_time: end.toISOString(),
         event_type: 'task',
         task_id: task.id,
-        color: task.priority === 'high' ? '#E85D75' : task.priority === 'medium' ? '#E8A838' : '#4A90D9',
+        color: PRIORITY_COLORS[task.priority] || '#4A90D9',
       })
 
       onEventMoved()
     } catch (err) {
       console.error('Drop failed:', err)
     }
-  }
+  }, [date, calcDropHour, onEventMoved])
+
+  // ── Preview block style ──
+  const previewDuration = draggingTask ? (draggingTask.estimated_minutes || 60) : 60
+  const previewHeight = Math.max((previewDuration / 60) * hourHeight, hourHeight / 2)
+  const previewColor = draggingTask
+    ? (PRIORITY_COLORS[draggingTask.priority] || '#4A90D9')
+    : '#4A90D9'
 
   return (
     <div
-      className="flex-1 relative border-l cursor-pointer"
+      ref={containerRef}
+      className="flex-1 relative border-l select-none"
       style={{
         borderColor: 'var(--border-glass)',
         height: totalHeight,
-        background: today ? 'rgba(59,130,246,0.02)' : isDragOver ? 'rgba(59,130,246,0.06)' : 'transparent',
+        background: today ? 'rgba(59,130,246,0.02)' : 'transparent',
+        transition: 'background 0.15s ease',
       }}
-      onClick={handleSlotClick}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMoveClick}
+      onClick={handleClick}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -115,10 +175,7 @@ export function DayColumn({
         <div
           key={i}
           className="absolute left-0 right-0 border-t"
-          style={{
-            top: i * hourHeight,
-            borderColor: 'var(--border-glass)',
-          }}
+          style={{ top: i * hourHeight, borderColor: 'var(--border-glass)' }}
         />
       ))}
 
@@ -134,6 +191,39 @@ export function DayColumn({
           }}
         />
       ))}
+
+      {/* Drop preview indicator — shows where the task will land */}
+      {draggingTask && dropHour !== null && (
+        <div
+          className="absolute left-0.5 right-0.5 rounded-lg pointer-events-none flex flex-col justify-center px-2 overflow-hidden"
+          style={{
+            top: (dropHour - hourStart) * hourHeight + 1,
+            height: previewHeight - 2,
+            background: `${previewColor}18`,
+            border: `2px dashed ${previewColor}80`,
+            zIndex: 15,
+            transition: 'top 0.1s ease',
+          }}
+        >
+          <div className="text-xs font-medium truncate" style={{ color: previewColor }}>
+            {draggingTask.title}
+          </div>
+          <div className="text-[10px] mt-0.5" style={{ color: `${previewColor}aa` }}>
+            {formatHour(dropHour)} – {formatHour(dropHour + previewDuration / 60)}
+          </div>
+        </div>
+      )}
+
+      {/* Drag-over column highlight */}
+      {draggingTask && dropHour !== null && (
+        <div
+          className="absolute inset-0 pointer-events-none rounded-sm"
+          style={{
+            background: `${previewColor}05`,
+            boxShadow: `inset 0 0 0 1px ${previewColor}20`,
+          }}
+        />
+      )}
 
       {/* Events */}
       {dayEvents.map(event => (

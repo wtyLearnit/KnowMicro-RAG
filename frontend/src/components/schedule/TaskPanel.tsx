@@ -12,9 +12,11 @@ interface TaskPanelProps {
   onEditTask: (task: ScheduleTask) => void
   onCreateTask: () => void
   onTaskMoved: () => void
+  onDragStart?: (task: ScheduleTask) => void
+  onDragEnd?: () => void
 }
 
-export function TaskPanel({ tasks, allTasks, onEditTask, onCreateTask, onTaskMoved }: TaskPanelProps) {
+export function TaskPanel({ tasks, allTasks, onEditTask, onCreateTask, onTaskMoved, onDragStart, onDragEnd }: TaskPanelProps) {
   const completedTasks = allTasks.filter(t => t.status === 'completed')
 
   return (
@@ -52,7 +54,8 @@ export function TaskPanel({ tasks, allTasks, onEditTask, onCreateTask, onTaskMov
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -5 }}
             >
-              <TaskItem task={task} onEdit={() => onEditTask(task)} onMoved={onTaskMoved} />
+              <TaskItem task={task} onEdit={() => onEditTask(task)} onMoved={onTaskMoved}
+                        onDragStart={() => onDragStart?.(task)} onDragEnd={() => onDragEnd?.()} />
             </motion.div>
           ))}
         </AnimatePresence>
