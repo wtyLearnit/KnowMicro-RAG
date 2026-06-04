@@ -25,7 +25,7 @@ markdown==3.7
 tiktoken==0.8.0
 rank-bm25==0.2.2
 jieba==0.42.1
-sentence-transformers==3.3.1
+# sentence-transformers==3.3.1  # 可选：重排序功能需要。首次启动会自动尝试安装
 
 # Web Search
 ddgs>=9.0.0
