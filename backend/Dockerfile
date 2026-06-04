@@ -14,6 +14,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # App code
 COPY app/ ./app/
 
+# Alembic migrations (needed for init_db on fresh start)
+COPY alembic.ini .
+COPY alembic/ ./alembic/
+
 # Data directory
 RUN mkdir -p /app/data/chroma
 
