@@ -1,0 +1,19 @@
+# 本地数据 & 密钥
+data/
+.env
+*.db
+*.sqlite
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
