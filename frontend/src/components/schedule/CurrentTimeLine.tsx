@@ -17,7 +17,7 @@ export function CurrentTimeLine({ hourStart, hourHeight }: CurrentTimeLineProps)
   }, [])
 
   const hour = now.getHours() + now.getMinutes() / 60
-  if (hour < hourStart || hour > hourStart + 24) return null
+  if (hour < hourStart || hour >= hourStart + 24) return null
 
   const top = (hour - hourStart) * hourHeight
 

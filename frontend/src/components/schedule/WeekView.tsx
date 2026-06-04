@@ -8,8 +8,8 @@ import { TimeAxis } from './TimeAxis'
 import { DayColumn } from './DayColumn'
 import type { CalendarEvent, Course } from '../../types'
 
-const HOUR_START = 8
-const HOUR_END = 22
+const HOUR_START = 0
+const HOUR_END = 24
 const HOUR_COUNT = HOUR_END - HOUR_START
 const HOUR_HEIGHT = 64 // px per hour
 
@@ -38,58 +38,63 @@ export function WeekView({
 
   return (
     <div className="h-full flex flex-col">
-      {/* Day headers */}
-      <div className="flex shrink-0 border-b" style={{ borderColor: 'var(--border-glass)' }}>
-        {/* Time axis header spacer */}
-        <div className="w-14 shrink-0" />
+      {/* Day headers + Time grid in a shared scrollable container */}
+      <div className="flex flex-1 overflow-y-scroll overflow-x-hidden">
+        {/* Left column: time axis header + time labels */}
+        <div className="w-14 shrink-0 flex flex-col">
+          {/* Header spacer (aligns with day headers) */}
+          <div className="h-[68px] shrink-0" />
+          {/* Time labels */}
+          <TimeAxis hourStart={HOUR_START} hourEnd={HOUR_END} hourHeight={HOUR_HEIGHT} />
+        </div>
 
-        {days.map((day, i) => {
-          const today = isToday(day)
-          return (
-            <div
-              key={i}
-              className="flex-1 py-2 px-1 text-center border-l"
-              style={{ borderColor: 'var(--border-glass)' }}
-            >
-              <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                周{dayNames[i]}
-              </div>
-              <div
-                className={`text-lg font-serif font-semibold mt-0.5 inline-flex items-center justify-center w-8 h-8 rounded-full ${
-                  today ? 'text-white' : ''
-                }`}
-                style={{
-                  color: today ? '#fff' : 'var(--text-primary)',
-                  background: today ? 'var(--accent-blue)' : 'transparent',
-                }}
-              >
-                {format(day, 'd')}
-              </div>
-            </div>
-          )
-        })}
-      </div>
+        {/* Right column: day headers + day columns */}
+        <div className="flex-1 flex flex-col min-w-0">
+          {/* Day headers */}
+          <div className="flex shrink-0 border-b h-[68px]" style={{ borderColor: 'var(--border-glass)' }}>
+            {days.map((day, i) => {
+              const today = isToday(day)
+              return (
+                <div
+                  key={i}
+                  className="flex-1 py-2 px-1 text-center border-l"
+                  style={{ borderColor: 'var(--border-glass)' }}
+                >
+                  <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                    周{dayNames[i]}
+                  </div>
+                  <div
+                    className={`text-lg font-serif font-semibold mt-0.5 inline-flex items-center justify-center w-8 h-8 rounded-full ${
+                      today ? 'text-white' : ''
+                    }`}
+                    style={{
+                      color: today ? '#fff' : 'var(--text-primary)',
+                      background: today ? 'var(--accent-blue)' : 'transparent',
+                    }}
+                  >
+                    {format(day, 'd')}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
 
-      {/* Time grid */}
-      <div className="flex flex-1 overflow-y-auto overflow-x-hidden">
-        {/* Time axis */}
-        <TimeAxis hourStart={HOUR_START} hourEnd={HOUR_END} hourHeight={HOUR_HEIGHT} />
-
-        {/* Day columns */}
-        <div className="flex-1 flex">
-          {days.map((day, i) => (
-            <DayColumn
-              key={i}
-              date={day}
-              events={events}
-              hourStart={HOUR_START}
-              hourEnd={HOUR_END}
-              hourHeight={HOUR_HEIGHT}
-              onSlotClick={onSlotClick}
-              onEventClick={onEventClick}
-              onEventMoved={onEventMoved}
-            />
-          ))}
+          {/* Day columns */}
+          <div className="flex-1 flex">
+            {days.map((day, i) => (
+              <DayColumn
+                key={i}
+                date={day}
+                events={events}
+                hourStart={HOUR_START}
+                hourEnd={HOUR_END}
+                hourHeight={HOUR_HEIGHT}
+                onSlotClick={onSlotClick}
+                onEventClick={onEventClick}
+                onEventMoved={onEventMoved}
+              />
+            ))}
+          </div>
         </div>
       </div>
     </div>

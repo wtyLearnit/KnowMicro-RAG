@@ -1,11 +1,12 @@
 /**
  * DayColumn — single day column with events and free slots.
  */
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { isSameDay, isToday as checkIsToday } from 'date-fns'
 import { EventBlock } from './EventBlock'
 import { CurrentTimeLine } from './CurrentTimeLine'
-import type { CalendarEvent } from '../../types'
+import type { CalendarEvent, ScheduleTask } from '../../types'
+import { createScheduleEvent } from '../../services/api'
 
 interface DayColumnProps {
   date: Date
@@ -25,6 +26,7 @@ export function DayColumn({
   const hourCount = hourEnd - hourStart
   const totalHeight = hourCount * hourHeight
   const today = checkIsToday(date)
+  const [isDragOver, setIsDragOver] = useState(false)
 
   // Filter events for this day
   const dayEvents = useMemo(() => {
@@ -42,15 +44,71 @@ export function DayColumn({
     onSlotClick(date, snappedHour)
   }
 
+  // ── Drag & Drop (task → calendar) ──
+  const calcDropHour = (e: React.DragEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const y = e.clientY - rect.top
+    const hour = hourStart + y / hourHeight
+    return Math.floor(hour * 2) / 2 // Snap to 30min
+  }
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+    setIsDragOver(true)
+  }
+
+  const handleDragLeave = () => {
+    setIsDragOver(false)
+  }
+
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    setIsDragOver(false)
+
+    const raw = e.dataTransfer.getData('application/json')
+    if (!raw) return
+
+    try {
+      const data = JSON.parse(raw)
+      if (data.type !== 'task' || !data.task) return
+
+      const task: ScheduleTask = data.task
+      const dropHour = calcDropHour(e)
+      const durationMinutes = task.estimated_minutes || 60
+
+      const start = new Date(date)
+      start.setHours(Math.floor(dropHour), (dropHour % 1) * 60, 0, 0)
+      const end = new Date(start.getTime() + durationMinutes * 60000)
+
+      await createScheduleEvent({
+        title: task.title,
+        description: task.description || '',
+        start_time: start.toISOString(),
+        end_time: end.toISOString(),
+        event_type: 'task',
+        task_id: task.id,
+        color: task.priority === 'high' ? '#E85D75' : task.priority === 'medium' ? '#E8A838' : '#4A90D9',
+      })
+
+      onEventMoved()
+    } catch (err) {
+      console.error('Drop failed:', err)
+    }
+  }
+
   return (
     <div
       className="flex-1 relative border-l cursor-pointer"
       style={{
         borderColor: 'var(--border-glass)',
         height: totalHeight,
-        background: today ? 'rgba(59,130,246,0.02)' : 'transparent',
+        background: today ? 'rgba(59,130,246,0.02)' : isDragOver ? 'rgba(59,130,246,0.06)' : 'transparent',
       }}
       onClick={handleSlotClick}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
     >
       {/* Hour grid lines */}
       {Array.from({ length: hourCount }, (_, i) => (

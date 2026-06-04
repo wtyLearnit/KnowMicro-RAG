@@ -363,8 +363,10 @@ async def init_db():
             logger.info("Alembic migrations applied successfully")
         except Exception as exc:
             logger.error("Alembic migration failed, falling back to create_all: %s", exc)
-            async with engine.begin() as conn:
-                await conn.run_sync(Base.metadata.create_all)
+
+    # Safety net: create any tables that Alembic migrations might have missed
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
 
     # Migrate: rename api_key_encrypted to api_key if needed
     await _migrate_api_key_column()
