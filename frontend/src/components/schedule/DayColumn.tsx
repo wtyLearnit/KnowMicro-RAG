@@ -7,7 +7,7 @@ import { isSameDay, isToday as checkIsToday, format } from 'date-fns'
 import { EventBlock } from './EventBlock'
 import { CurrentTimeLine } from './CurrentTimeLine'
 import type { CalendarEvent, ScheduleTask } from '../../types'
-import { createScheduleEvent } from '../../services/api'
+import { createScheduleEvent, rescheduleEvent } from '../../services/api'
 
 interface DayColumnProps {
   date: Date
@@ -89,8 +89,11 @@ export function DayColumn({
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
+    // Accept both task drags and event drags
+    const hasJson = e.dataTransfer.types.includes('application/json')
+    if (!hasJson && !draggingTask) return
+
     e.dataTransfer.dropEffect = 'copy'
-    if (!draggingTask) return
 
     const hour = calcDropHour(e)
     if (dropHourRef.current !== hour) {
@@ -120,25 +123,49 @@ export function DayColumn({
 
     try {
       const data = JSON.parse(raw)
-      if (data.type !== 'task' || !data.task) return
-
-      const task: ScheduleTask = data.task
       const hour = calcDropHour(e)
-      const durationMinutes = task.estimated_minutes || 60
 
-      const start = new Date(date)
-      start.setHours(Math.floor(hour), Math.round((hour % 1) * 60), 0, 0)
-      const end = new Date(start.getTime() + durationMinutes * 60000)
+      if (data.type === 'task' && data.task) {
+        // ── Task → Create new event at drop position ──
+        const task: ScheduleTask = data.task
+        const durationMinutes = task.estimated_minutes || 60
 
-      await createScheduleEvent({
-        title: task.title,
-        description: task.description || '',
-        start_time: start.toISOString(),
-        end_time: end.toISOString(),
-        event_type: 'task',
-        task_id: task.id,
-        color: PRIORITY_COLORS[task.priority] || '#4A90D9',
-      })
+        // Local time: date is the column's day, hour is the drop position
+        const start = new Date(
+          date.getFullYear(), date.getMonth(), date.getDate(),
+          Math.floor(hour), Math.round((hour % 1) * 60), 0, 0
+        )
+        const end = new Date(start.getTime() + durationMinutes * 60000)
+
+        await createScheduleEvent({
+          title: task.title,
+          description: task.description || '',
+          start_time: start.toISOString(),
+          end_time: end.toISOString(),
+          event_type: 'task',
+          task_id: task.id,
+          color: PRIORITY_COLORS[task.priority] || '#4A90D9',
+        })
+
+      } else if (data.type === 'event' && data.event) {
+        // ── Event → Move to drop position (supports cross-day) ──
+        const evt = data.event
+        const origStart = new Date(evt.start_time)
+        const origEnd = new Date(evt.end_time)
+        const durationMs = origEnd.getTime() - origStart.getTime()
+
+        // New start = drop position on this column's day (local time)
+        const newStart = new Date(
+          date.getFullYear(), date.getMonth(), date.getDate(),
+          Math.floor(hour), Math.round((hour % 1) * 60), 0, 0
+        )
+        const newEnd = new Date(newStart.getTime() + durationMs)
+
+        await rescheduleEvent(evt.id, newStart.toISOString(), newEnd.toISOString())
+
+      } else {
+        return
+      }
 
       onEventMoved()
     } catch (err) {
@@ -147,11 +174,13 @@ export function DayColumn({
   }, [date, calcDropHour, onEventMoved])
 
   // ── Preview block style ──
+  // Show preview for both task drags and event drags
+  const isDragActive = dropHour !== null
   const previewDuration = draggingTask ? (draggingTask.estimated_minutes || 60) : 60
   const previewHeight = Math.max((previewDuration / 60) * hourHeight, hourHeight / 2)
   const previewColor = draggingTask
     ? (PRIORITY_COLORS[draggingTask.priority] || '#4A90D9')
-    : '#4A90D9'
+    : '#3B82F6'
 
   return (
     <div
@@ -192,12 +221,12 @@ export function DayColumn({
         />
       ))}
 
-      {/* Drop preview indicator — shows where the task will land */}
-      {draggingTask && dropHour !== null && (
+      {/* Drop preview indicator — shows where the item will land */}
+      {isDragActive && (
         <div
           className="absolute left-0.5 right-0.5 rounded-lg pointer-events-none flex flex-col justify-center px-2 overflow-hidden"
           style={{
-            top: (dropHour - hourStart) * hourHeight + 1,
+            top: (dropHour! - hourStart) * hourHeight + 1,
             height: previewHeight - 2,
             background: `${previewColor}18`,
             border: `2px dashed ${previewColor}80`,
@@ -206,7 +235,7 @@ export function DayColumn({
           }}
         >
           <div className="text-xs font-medium truncate" style={{ color: previewColor }}>
-            {draggingTask.title}
+            {draggingTask ? draggingTask.title : '移动到此处'}
           </div>
           <div className="text-[10px] mt-0.5" style={{ color: `${previewColor}aa` }}>
             {formatHour(dropHour)} – {formatHour(dropHour + previewDuration / 60)}
@@ -215,7 +244,7 @@ export function DayColumn({
       )}
 
       {/* Drag-over column highlight */}
-      {draggingTask && dropHour !== null && (
+      {isDragActive && (
         <div
           className="absolute inset-0 pointer-events-none rounded-sm"
           style={{

@@ -343,11 +343,15 @@ async def get_calendar_events(
     end: datetime,
 ) -> List[CalendarEventOut]:
     """获取日历混合事件：真实事件 + 课表虚拟事件。"""
+    # 转为 UTC naive 用于数据库查询
+    start_naive = start.replace(tzinfo=None) if start.tzinfo else start
+    end_naive = end.replace(tzinfo=None) if end.tzinfo else end
+
     # 1. 查询真实事件
     result = await db.execute(
         select(ScheduleEvent).where(
-            ScheduleEvent.start_time < end,
-            ScheduleEvent.end_time > start,
+            ScheduleEvent.start_time < end_naive,
+            ScheduleEvent.end_time > start_naive,
         )
     )
     real_events = result.scalars().all()
@@ -371,9 +375,9 @@ async def get_calendar_events(
     courses = course_result.scalars().all()
 
     if courses:
-        # 遍历日期范围内的每一天
-        current = start.date()
-        end_date = end.date()
+        # 遍历日期范围内的每一天（UTC 日期）
+        current = start_naive.date()
+        end_date = end_naive.date()
         while current <= end_date:
             # 检查是否是课程对应的星期
             day_of_week = current.weekday()

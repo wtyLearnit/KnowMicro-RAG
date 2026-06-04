@@ -1,9 +1,9 @@
 """
 苏格拉底之窗 - Pydantic Schemas
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # ── Collection ──────────────────────────────────────
@@ -476,6 +476,17 @@ class EventOut(BaseModel):
     is_completed: bool
     created_at: datetime
 
+    @model_validator(mode='after')
+    def _ensure_utc(self):
+        """数据库存的是 UTC naive datetime，补上时区信息让前端正确解析。"""
+        for field in ('start_time', 'end_time', 'created_at'):
+            val = getattr(self, field)
+            if val and val.tzinfo is None:
+                object.__setattr__(self, field, val.replace(tzinfo=timezone.utc))
+        return self
+    is_completed: bool
+    created_at: datetime
+
 
 class CalendarEventOut(BaseModel):
     """日历混合查询输出：真实事件 + 课表虚拟事件。"""
@@ -491,6 +502,15 @@ class CalendarEventOut(BaseModel):
     all_day: bool = False
     is_completed: bool = False
     is_virtual: bool = False  # True = 由课表自动生成，不存在于 events 表
+
+    @model_validator(mode='after')
+    def _ensure_utc(self):
+        """确保输出的 datetime 都带 UTC 时区，前端 new Date() 才能正确解析。"""
+        for field in ('start_time', 'end_time'):
+            val = getattr(self, field)
+            if val and val.tzinfo is None:
+                object.__setattr__(self, field, val.replace(tzinfo=timezone.utc))
+        return self
 
 
 # ── Schedule: Import ───────────────────────────────

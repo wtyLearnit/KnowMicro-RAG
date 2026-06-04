@@ -5,6 +5,21 @@
 from datetime import datetime, timezone
 from typing import Optional
 
+
+def _to_utc_naive(dt: datetime) -> datetime:
+    """将 datetime 转为 UTC 并去掉时区信息（SQLite 存储用）。"""
+    if dt.tzinfo is not None:
+        return dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
+
+
+def _parse_query_dt(s: str) -> datetime:
+    """解析前端传来的 ISO 时间字符串，返回 UTC aware datetime。"""
+    dt = datetime.fromisoformat(s)
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -249,9 +264,13 @@ async def list_events(
 ):
     stmt = select(ScheduleEvent)
     if start and end:
-        start_dt = datetime.fromisoformat(start)
-        end_dt = datetime.fromisoformat(end)
-        stmt = stmt.where(ScheduleEvent.start_time < end_dt, ScheduleEvent.end_time > start_dt)
+        start_dt = _parse_query_dt(start)
+        end_dt = _parse_query_dt(end)
+        # 数据库存的是 UTC naive，查询也用 naive
+        stmt = stmt.where(
+            ScheduleEvent.start_time < end_dt.replace(tzinfo=None),
+            ScheduleEvent.end_time > start_dt.replace(tzinfo=None),
+        )
     stmt = stmt.order_by(ScheduleEvent.start_time)
     result = await db.execute(stmt)
     return result.scalars().all()
@@ -261,7 +280,8 @@ async def list_events(
 async def create_event(data: EventCreate, db: AsyncSession = Depends(get_db)):
     event = ScheduleEvent(
         title=data.title, description=data.description,
-        start_time=data.start_time, end_time=data.end_time,
+        start_time=_to_utc_naive(data.start_time),
+        end_time=_to_utc_naive(data.end_time),
         event_type=data.event_type, color=data.color,
         course_id=data.course_id, task_id=data.task_id,
         all_day=data.all_day,
@@ -286,6 +306,8 @@ async def update_event(event_id: str, data: EventUpdate, db: AsyncSession = Depe
     if not event:
         raise HTTPException(404, "事件不存在")
     for field, value in data.model_dump(exclude_unset=True).items():
+        if field in ('start_time', 'end_time') and isinstance(value, datetime):
+            value = _to_utc_naive(value)
         setattr(event, field, value)
     await db.commit()
     await db.refresh(event)
@@ -315,8 +337,8 @@ async def reschedule_event(event_id: str, data: EventReschedule, db: AsyncSessio
     event = await db.get(ScheduleEvent, event_id)
     if not event:
         raise HTTPException(404, "事件不存在")
-    event.start_time = data.start_time
-    event.end_time = data.end_time
+    event.start_time = _to_utc_naive(data.start_time)
+    event.end_time = _to_utc_naive(data.end_time)
     await db.commit()
     await db.refresh(event)
     return event
@@ -332,6 +354,6 @@ async def get_calendar(
     end: str = Query(...),
     db: AsyncSession = Depends(get_db),
 ):
-    start_dt = datetime.fromisoformat(start)
-    end_dt = datetime.fromisoformat(end)
+    start_dt = _parse_query_dt(start)
+    end_dt = _parse_query_dt(end)
     return await get_calendar_events(db, start_dt, end_dt)
