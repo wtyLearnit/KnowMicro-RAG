@@ -27,7 +27,7 @@ export function TaskItem({ task, onEdit, onMoved, onDragStart, onDragEnd }: Task
 
   const priorityColor = PRIORITY_COLORS[task.priority] || PRIORITY_COLORS.medium
 
-  // ── Drag ──
+  // ── Drag (card-style sticky-note UX) ──
   const handleDragStart = (e: React.DragEvent) => {
     didDragRef.current = false
     setIsDragging(true)
@@ -39,22 +39,11 @@ export function TaskItem({ task, onEdit, onMoved, onDragStart, onDragEnd }: Task
     }))
     e.dataTransfer.effectAllowed = 'copy'
 
-    // Custom drag image — a compact card
-    const ghost = document.createElement('div')
-    ghost.style.cssText = `
-      position: fixed; top: -200px; left: -200px; z-index: 9999;
-      padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 500;
-      background: rgba(15,23,42,0.92); color: #e2e8f0;
-      border-left: 3px solid ${priorityColor};
-      box-shadow: 0 8px 32px rgba(0,0,0,0.4); backdrop-filter: blur(8px);
-      max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-      font-family: system-ui, -apple-system, sans-serif;
-    `
-    ghost.textContent = task.title
-    document.body.appendChild(ghost)
-    e.dataTransfer.setDragImage(ghost, 20, 16)
-    // Clean up ghost after a tick (browser takes a snapshot)
-    requestAnimationFrame(() => ghost.remove())
+    // Use the element itself as the drag image — the browser snapshots
+    // it, so dragging looks like moving the card directly (no ghost).
+    const el = e.currentTarget as HTMLElement
+    const rect = el.getBoundingClientRect()
+    e.dataTransfer.setDragImage(el, e.clientX - rect.left, e.clientY - rect.top)
   }
 
   const handleDragEnd = () => {

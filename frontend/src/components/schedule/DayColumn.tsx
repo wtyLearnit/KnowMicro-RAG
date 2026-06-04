@@ -2,7 +2,7 @@
  * DayColumn — single day column with events and free slots.
  * Supports drag-and-drop with live time preview.
  */
-import { useMemo, useState, useRef, useCallback } from 'react'
+import { useMemo, useState, useRef, useCallback, useEffect } from 'react'
 import { isSameDay, isToday as checkIsToday, format } from 'date-fns'
 import { EventBlock } from './EventBlock'
 import { CurrentTimeLine } from './CurrentTimeLine'
@@ -87,13 +87,33 @@ export function DayColumn({
     return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
   }
 
+  // Debounce timer for dragLeave — prevents duplicate previews caused by:
+  // - boundary overlap between adjacent columns (shared 1px border)
+  // - child-element enter/leave (EventBlocks inside DayColumn)
+  const dragLeaveTimerRef = useRef<number | null>(null)
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (dragLeaveTimerRef.current !== null) {
+        clearTimeout(dragLeaveTimerRef.current)
+      }
+    }
+  }, [])
+
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
-    // Accept both task drags and event drags
-    const hasJson = e.dataTransfer.types.includes('application/json')
-    if (!hasJson && !draggingTask) return
+    // Match dropEffect to the drag source's effectAllowed:
+    // - tasks from panel → copy (create new event)
+    // - events from timeline → move (reschedule)
+    e.dataTransfer.dropEffect = draggingTask ? 'copy' : 'move'
 
-    e.dataTransfer.dropEffect = 'copy'
+    // Cancel any pending dragLeave clear — a live dragover means
+    // we're still actively hovering this column
+    if (dragLeaveTimerRef.current !== null) {
+      clearTimeout(dragLeaveTimerRef.current)
+      dragLeaveTimerRef.current = null
+    }
 
     const hour = calcDropHour(e)
     if (dropHourRef.current !== hour) {
@@ -102,28 +122,82 @@ export function DayColumn({
     }
   }, [draggingTask, calcDropHour])
 
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    // Only clear if actually leaving the column (not entering a child)
-    const rect = e.currentTarget.getBoundingClientRect()
-    const x = e.clientX
-    const y = e.clientY
-    if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+  const handleDragLeave = useCallback((_e: React.DragEvent) => {
+    // Debounced clear: wait 60ms before hiding the preview.
+    // If dragover fires again on this column within that window
+    // (e.g. after leaving a child EventBlock, or at a column
+    // boundary where two rects overlap by 1px), the timer is
+    // cancelled and the preview stays alive.
+    // If the mouse really moved to another column, the new
+    // column's dragover will take over and this column fades.
+    if (dragLeaveTimerRef.current !== null) {
+      clearTimeout(dragLeaveTimerRef.current)
+    }
+    dragLeaveTimerRef.current = window.setTimeout(() => {
       dropHourRef.current = null
       setDropHour(null)
-    }
+      dragLeaveTimerRef.current = null
+    }, 60)
   }, [])
 
   const handleDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault()
+    // Immediately clear preview — drop succeeded or rejected
+    if (dragLeaveTimerRef.current !== null) {
+      clearTimeout(dragLeaveTimerRef.current)
+      dragLeaveTimerRef.current = null
+    }
+    const dropH = dropHourRef.current
     dropHourRef.current = null
     setDropHour(null)
 
+    const draggedEventId = document.body.dataset.dragEventId || undefined
+    // Clean up event drag metadata
+    delete document.body.dataset.dragEventDuration
+    delete document.body.dataset.dragEventColor
+    delete document.body.dataset.dragEventId
+
     const raw = e.dataTransfer.getData('application/json')
-    if (!raw) return
+    if (!raw || dropH === null) return
 
     try {
       const data = JSON.parse(raw)
-      const hour = calcDropHour(e)
+      const hour = dropH
+
+      // ── Compute drop time range for conflict check ──
+      let dropDurationMin: number
+      if (data.type === 'task' && data.task) {
+        dropDurationMin = data.task.estimated_minutes || 60
+      } else if (data.type === 'event' && data.event) {
+        const origS = new Date(data.event.start_time)
+        const origE = new Date(data.event.end_time)
+        dropDurationMin = (origE.getTime() - origS.getTime()) / 60000
+      } else {
+        return
+      }
+      const dropEndH = hour + dropDurationMin / 60
+
+      // ── Conflict check: don't allow overlapping events ──
+      const hasOverlap = dayEvents.some(ev => {
+        if (draggedEventId && ev.id === draggedEventId) return false
+        const s = new Date(ev.start_time)
+        const e = new Date(ev.end_time)
+        const evStartH = s.getHours() + s.getMinutes() / 60
+        const evEndH = e.getHours() + e.getMinutes() / 60
+        return hour < evEndH && evStartH < dropEndH
+      })
+
+      if (hasOverlap) {
+        // Visual feedback: briefly flash the column red, then do nothing
+        const col = e.currentTarget as HTMLElement
+        col.style.transition = 'none'
+        col.style.boxShadow = 'inset 0 0 0 3px rgba(239,68,68,0.5)'
+        setTimeout(() => {
+          col.style.transition = 'box-shadow 0.4s ease'
+          col.style.boxShadow = ''
+        }, 150)
+        return
+      }
 
       if (data.type === 'task' && data.task) {
         // ── Task → Create new event at drop position ──
@@ -171,16 +245,42 @@ export function DayColumn({
     } catch (err) {
       console.error('Drop failed:', err)
     }
-  }, [date, calcDropHour, onEventMoved])
+  }, [date, calcDropHour, onEventMoved, dayEvents])
 
   // ── Preview block style ──
-  // Show preview for both task drags and event drags
+  // Show preview for both task drags and event drags.
+  // Event drag duration is stored on document.body.dataset by EventBlock
+  // because custom MIME values are unreadable during dragover.
   const isDragActive = dropHour !== null
-  const previewDuration = draggingTask ? (draggingTask.estimated_minutes || 60) : 60
+  const eventDragMinutes = document.body.dataset.dragEventDuration
+  const dragEventId = document.body.dataset.dragEventId
+  const previewDuration = draggingTask
+    ? (draggingTask.estimated_minutes || 60)
+    : (eventDragMinutes ? parseInt(eventDragMinutes) : 60)
   const previewHeight = Math.max((previewDuration / 60) * hourHeight, hourHeight / 2)
-  const previewColor = draggingTask
+  const baseColor = draggingTask
     ? (PRIORITY_COLORS[draggingTask.priority] || '#4A90D9')
-    : '#3B82F6'
+    : (document.body.dataset.dragEventColor || '#3B82F6')
+
+  // ── Overlap detection ──
+  // Check whether the drop position would collide with an existing event.
+  const dropStartH = dropHour ?? 0
+  const dropEndH = dropStartH + previewDuration / 60
+  const hasConflict = useMemo(() => {
+    if (!isDragActive) return false
+    return dayEvents.some(ev => {
+      // Exclude the event being moved (it's leaving its old slot)
+      if (dragEventId && ev.id === dragEventId) return false
+      const s = new Date(ev.start_time)
+      const e = new Date(ev.end_time)
+      const evStartH = s.getHours() + s.getMinutes() / 60
+      const evEndH = e.getHours() + e.getMinutes() / 60
+      // Two ranges overlap: A_start < B_end && B_start < A_end
+      return dropStartH < evEndH && evStartH < dropEndH
+    })
+  }, [isDragActive, dropStartH, dropEndH, dayEvents, dragEventId])
+
+  const previewColor = hasConflict ? '#EF4444' : baseColor
 
   return (
     <div
@@ -224,20 +324,20 @@ export function DayColumn({
       {/* Drop preview indicator — shows where the item will land */}
       {isDragActive && (
         <div
-          className="absolute left-0.5 right-0.5 rounded-lg pointer-events-none flex flex-col justify-center px-2 overflow-hidden"
+          className={`absolute left-0.5 right-0.5 rounded-lg pointer-events-none flex flex-col justify-center px-2 overflow-hidden ${hasConflict ? 'animate-pulse' : ''}`}
           style={{
             top: (dropHour! - hourStart) * hourHeight + 1,
             height: previewHeight - 2,
-            background: `${previewColor}18`,
-            border: `2px dashed ${previewColor}80`,
+            background: hasConflict ? `${previewColor}22` : `${previewColor}18`,
+            border: `2px ${hasConflict ? 'solid' : 'dashed'} ${previewColor}${hasConflict ? 'aa' : '80'}`,
             zIndex: 15,
             transition: 'top 0.1s ease',
           }}
         >
           <div className="text-xs font-medium truncate" style={{ color: previewColor }}>
-            {draggingTask ? draggingTask.title : '移动到此处'}
+            {hasConflict ? '⚠ 时间段已占用' : draggingTask ? draggingTask.title : '移动到此处'}
           </div>
-          <div className="text-[10px] mt-0.5" style={{ color: `${previewColor}aa` }}>
+          <div className="text-[10px] mt-0.5" style={{ color: `${previewColor}${hasConflict ? 'cc' : 'aa'}` }}>
             {formatHour(dropHour)} – {formatHour(dropHour + previewDuration / 60)}
           </div>
         </div>
@@ -248,8 +348,8 @@ export function DayColumn({
         <div
           className="absolute inset-0 pointer-events-none rounded-sm"
           style={{
-            background: `${previewColor}05`,
-            boxShadow: `inset 0 0 0 1px ${previewColor}20`,
+            background: hasConflict ? `${previewColor}0d` : `${previewColor}05`,
+            boxShadow: `inset 0 0 0 1px ${previewColor}${hasConflict ? '30' : '20'}`,
           }}
         />
       )}
@@ -263,6 +363,7 @@ export function DayColumn({
           hourHeight={hourHeight}
           onClick={() => onEventClick(event)}
           onMoved={onEventMoved}
+          siblingEvents={dayEvents}
         />
       ))}
 

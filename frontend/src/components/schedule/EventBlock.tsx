@@ -13,9 +13,11 @@ interface EventBlockProps {
   hourHeight: number
   onClick: () => void
   onMoved: () => void
+  /** Other events on the same day — used for overlap detection during resize. */
+  siblingEvents?: CalendarEvent[]
 }
 
-export function EventBlock({ event, hourStart, hourHeight, onClick, onMoved }: EventBlockProps) {
+export function EventBlock({ event, hourStart, hourHeight, onClick, onMoved, siblingEvents }: EventBlockProps) {
   const [isResizing, setIsResizing] = useState(false)
   const [resizeDeltaY, setResizeDeltaY] = useState(0)
   const [resizeEdge, setResizeEdge] = useState<'top' | 'bottom' | null>(null)
@@ -52,7 +54,7 @@ export function EventBlock({ event, hourStart, hourHeight, onClick, onMoved }: E
     }
   }
 
-  // ── HTML5 Drag (cross-day support) ──
+  // ── HTML5 Drag (cross-day support, full-block sticky-note UX) ──
   const handleDragStart = (e: React.DragEvent) => {
     if (isVirtual) return
     didDragRef.current = false
@@ -71,25 +73,26 @@ export function EventBlock({ event, hourStart, hourHeight, onClick, onMoved }: E
     }))
     e.dataTransfer.effectAllowed = 'move'
 
-    // Custom drag image
-    const ghost = document.createElement('div')
-    ghost.style.cssText = `
-      position: fixed; top: -200px; left: -200px; z-index: 9999;
-      padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 500;
-      background: rgba(15,23,42,0.92); color: #fff;
-      border-left: 3px solid ${hexColor};
-      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-      max-width: 180px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-      font-family: system-ui, -apple-system, sans-serif;
-    `
-    ghost.textContent = event.title
-    document.body.appendChild(ghost)
-    e.dataTransfer.setDragImage(ghost, 20, 12)
-    requestAnimationFrame(() => ghost.remove())
+    // Store event metadata so DayColumn can show a correctly-sized preview
+    // and detect time conflicts. (Custom MIME values are unreadable during
+    // dragover, so we use a dataset bridge.)
+    const durationMinutes = Math.round(duration * 60)
+    document.body.dataset.dragEventDuration = String(durationMinutes)
+    document.body.dataset.dragEventColor = hexColor
+    document.body.dataset.dragEventId = event.id
+
+    // Use the element itself as the drag image — the browser snapshots
+    // it, so dragging looks like moving the block directly (no ghost).
+    const el = e.currentTarget as HTMLElement
+    const rect = el.getBoundingClientRect()
+    e.dataTransfer.setDragImage(el, e.clientX - rect.left, e.clientY - rect.top)
   }
 
   const handleDragEnd = () => {
     setIsDragging(false)
+    delete document.body.dataset.dragEventDuration
+    delete document.body.dataset.dragEventColor
+    delete document.body.dataset.dragEventId
   }
 
   // ── Resize (top or bottom edge) ──
@@ -138,6 +141,21 @@ export function EventBlock({ event, hourStart, hourHeight, onClick, onMoved }: E
         if (newEnd.getTime() - newStart.getTime() < 15 * 60000) {
           newEnd = new Date(newStart.getTime() + 15 * 60000)
         }
+      }
+
+      // ── Overlap check: don't allow resizing into another event ──
+      if (siblingEvents && siblingEvents.length > 0) {
+        const newStartH = newStart.getHours() + newStart.getMinutes() / 60
+        const newEndH = newEnd.getHours() + newEnd.getMinutes() / 60
+        const overlaps = siblingEvents.some(ev => {
+          if (ev.id === event.id) return false
+          const s = new Date(ev.start_time)
+          const e = new Date(ev.end_time)
+          const sH = s.getHours() + s.getMinutes() / 60
+          const eH = e.getHours() + e.getMinutes() / 60
+          return newStartH < eH && sH < newEndH
+        })
+        if (overlaps) return // silently reject
       }
 
       try {
