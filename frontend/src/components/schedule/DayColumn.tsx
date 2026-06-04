@@ -22,9 +22,9 @@ interface DayColumnProps {
 }
 
 const PRIORITY_COLORS: Record<string, string> = {
-  high: 'rgb(239, 68, 68)',
-  medium: 'rgb(251,191,36)',
-  low: 'rgb(34,211,238)',
+  high: '#EF4444',
+  medium: '#F59E0B',
+  low: '#06B6D4',
 }
 
 export function DayColumn({

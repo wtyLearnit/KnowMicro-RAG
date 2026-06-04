@@ -39,13 +39,15 @@ export function EventBlock({ event, hourStart, hourHeight, onClick, onMoved }: E
   const isVirtual = event.is_virtual
 
   // ── Color & opacity ──
-  const bgColor = event.color || '#4A90D9'
+  // Normalize color to hex for alpha appending
+  const rawColor = event.color || '#4A90D9'
+  const hexColor = rawColor.startsWith('#') ? rawColor : '#4A90D9'
   // Courses: semi-transparent overlay; tasks & custom: fully opaque
   const bgStyle = isCourse
-    ? `${bgColor}22`
-    : `${bgColor}ee`
+    ? `${hexColor}22`
+    : isTask ? hexColor : `${hexColor}dd`
   const textColor = isCourse
-    ? (event.color ? `${event.color}ee` : 'var(--text-primary)')
+    ? hexColor
     : '#fff'
 
   // ── Click (not after drag/resize) ──
@@ -221,7 +223,7 @@ export function EventBlock({ event, hourStart, hourHeight, onClick, onMoved }: E
         top: displayTop,
         height: displayHeight,
         background: bgStyle,
-        borderLeft: `3px solid ${event.color || '#4A90D9'}`,
+        borderLeft: `3px solid ${hexColor}`,
         zIndex: (isDragging || isResizing) ? 100 : isCourse ? 1 : isTask ? 3 : 2,
         backdropFilter: isCourse ? 'blur(4px)' : undefined,
         boxShadow: (isDragging || isResizing)
