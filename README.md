@@ -1,12 +1,86 @@
-# 🪟 苏格拉底之窗 (Socrates' Window)
+<p align="center">
+  <h1 align="center">🪟 苏格拉底之窗<br><sub>Socrates' Window</sub></h1>
+</p>
 
-> 洞穴墙上的投影，经由理性之光折射，成为理念世界的入口。
+<p align="center">
+  <em>洞穴墙上的投影，经由理性之光折射，成为理念世界的入口。</em>
+</p>
 
-**苏格拉底之窗** 是一个基于 RAG（检索增强生成）的智能学习系统。上传你的学习材料，与苏格拉底式的 AI 导师展开对话，让知识从被动接收变为主动发现。
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
+  <a href="#"><img src="https://img.shields.io/badge/python-3.11+-green.svg" alt="Python"></a>
+  <a href="#"><img src="https://img.shields.io/badge/node-20+-green.svg" alt="Node"></a>
+  <a href="#"><img src="https://img.shields.io/badge/react-18-61dafb.svg" alt="React"></a>
+</p>
 
 ---
 
-## 架构概览
+一个基于 **RAG**（检索增强生成）的智能学习系统。上传学习材料，与苏格拉底式的 AI 导师对话 —— 追问而非灌输，从具体升到抽象，让知识从被动接收变为主动发现。
+
+---
+
+## 目录
+
+- [✨ 功能](#-功能)
+- [🏗️ 架构](#️-架构)
+- [🚀 快速开始](#-快速开始)
+- [⚙️ 配置](#️-配置)
+- [🔒 部署安全](#-部署安全)
+- [📁 项目结构](#-项目结构)
+- [🧭 路线图](#-路线图)
+- [📄 许可证](#-许可证)
+
+---
+
+## ✨ 功能
+
+### 📚 知识库管理
+- 多知识库独立管理，支持 PDF / TXT / Markdown / DOCX
+- 拖拽上传 + 批量上传，带进度反馈
+- 智能分块：递归分割、Markdown 感知、语义边界
+- 文档预览（原文 + 分块视图）
+- 归档 / 恢复 / 永久删除（回收站保护）
+
+### 💬 对话系统
+- 基于知识库的 RAG 问答 + 自由对话（无需知识库）
+- **双模式**：苏格拉底式（引导追问） / 直接问答
+- SSE 流式输出，逐字呈现
+- 引用来源可展开查看原文片段
+- 多轮对话持久化，Top-K 检索数量可调
+
+### ✏️ 对话管理
+- 重命名 / 编辑消息 / 删除消息及后续
+- 重新生成回复（流式）
+- 从任意消息节点**分支对话**
+- 一键复制完整对话为纯文本
+- 删除知识库时保留关联对话（孤立保护）
+
+### 📅 日程管理
+- 周视图 + 月视图日历
+- 任务面板：拖拽任务到时间表自动创建日程
+- 事件块支持拖拽移动（跨天）+ 拉伸调整时长
+- 时间冲突检测，防止重叠
+- 课表导入（Excel）
+
+### 🔍 混合检索
+- BM25 关键词检索（jieba 中文分词）
+- 语义向量检索（ChromaDB 余弦相似度）
+- RRF 融合 + Cross-Encoder 重排序（BGE-Reranker）
+- 查询重写：对话上下文 → 独立检索查询
+
+### 🎨 三套主题
+- **深邃蓝 (Cosmos)** — 暗色学术风，星空动画背景
+- **晨光白 (Light)** — 明亮简洁
+- **古宣纸 (Xuan)** — 仿古宣纸色系，方正仿宋
+
+### ⚙️ 在线配置
+- 前端设置页面直接管理 LLM / Embedding / Web Search 配置
+- 支持 OpenAI / DeepSeek / 智谱 / 阿里云 DashScope / Ollama 等所有兼容接口
+- 无需修改 `.env` 文件，API Key 加密存储
+
+---
+
+## 🏗️ 架构
 
 ```
 ┌──────────────────────────────────────────┐
@@ -26,86 +100,62 @@
 └──────────────────────────────────────────┘
 ```
 
-### 技术栈
-
-| 层 | 技术 | 说明 |
-|---|---|---|
-| 前端 | React 18 + TypeScript + Tailwind CSS + Vite | 三套主题（深邃蓝 / 晨光白 / 古宣纸） |
-| 后端 | FastAPI + SQLAlchemy + ChromaDB | 异步 Python |
-| LLM | OpenAI 兼容接口 | 可接入任何兼容服务 |
-| Embedding | OpenAI 兼容接口 | text-embedding-3-small 等 |
-| 混合检索 | BM25 + 语义搜索 + RRF + Cross-Encoder 重排序 | 多路召回融合 |
-| 文档解析 | PyPDF2 / python-docx / markdown | PDF / DOCX / TXT / MD |
-| 部署 | Docker Compose | 一键编排 |
+| 层 | 技术 |
+|---|---|
+| 前端 | React 18 · TypeScript · Tailwind CSS · Vite · Framer Motion |
+| 后端 | FastAPI · SQLAlchemy 2.0 (async) · ChromaDB · Alembic |
+| LLM | OpenAI 兼容接口（支持任意兼容服务） |
+| Embedding | OpenAI 兼容接口 |
+| 检索 | BM25 (jieba) + 语义搜索 + RRF + Cross-Encoder |
+| 文档 | PyPDF2 · python-docx · markdown |
+| 部署 | Docker Compose |
 
 ---
 
-## 快速开始
+## 🚀 快速开始
 
-### 前置条件
+### 前提
 
 - Python 3.11+
 - Node.js 20+
-- 可用的 LLM API Key（OpenAI 或兼容服务）
-- Embedding API Key（可与 LLM 共用同一 Key）
+- LLM API Key（OpenAI 兼容）
 
-### 1. 克隆 & 配置
+### 本地启动
 
 ```bash
-git clone <your-repo-url> platos-window
-cd platos-window
+# 1. 克隆仓库
+git clone https://github.com/wtyLearnit/Socrates-Window.git
+cd Socrates-Window
 
-# 复制环境变量模板
+# 2. 配置环境变量
 cp backend/.env.example backend/.env
-```
+# （可选）编辑 backend/.env 填入 API Key，也可跳过，通过前端设置页面在线配置
 
-> **说明**：`backend/.env` 中的 API Key 仅作为兜底默认值。应用启动后，可通过前端「设置」页面在线配置 LLM 和 Embedding，前端配置的 Key 优先级更高，无需修改 `.env` 文件。
-
-### 2. 首次启动（本地开发）
-
-新用户 clone 后数据库是空的，后端首次启动会自动建表。所有数据（知识库、对话、日程、API Key 配置）均存储在 `backend/data/` 目录下，该目录不会被提交到 Git。
-
-```bash
-# 启动后端
+# 3. 启动后端
 cd backend
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
-```
 
-后端启动后访问 http://localhost:8000/docs 查看 API 文档。
-
-```bash
-# 另一个终端，启动前端
+# 4. 另一个终端，启动前端
 cd frontend
 npm install
 npm run dev
 ```
 
-前端启动后访问 http://localhost:5173。
+| 服务 | 地址 |
+|---|---|
+| 前端 | http://localhost:5173 |
+| 后端 API | http://localhost:8000 |
+| Swagger 文档 | http://localhost:8000/docs |
 
-### 3. 配置 LLM
+### 配置 LLM
 
-打开前端 → 点击左侧 **设置** → 在「模型配置」中添加 LLM 和 Embedding 配置。支持 OpenAI / DeepSeek / 智谱 / 阿里云 DashScope / Ollama 等所有 OpenAI 兼容接口。
+打开前端 → 左侧 **设置** → **模型配置** → 添加 LLM 和 Embedding。首次启动数据库为空，所有配置通过前端页面完成。
 
-### 4. 部署到公网
-
-如需部署到服务器，务必设置以下安全相关环境变量：
-
-```bash
-# 在 backend/.env 中设置
-SECRET_KEY=your-random-secret-string   # 用于加密存储的 API Key
-API_TOKEN=your-api-access-token        # API 访问令牌
-
-# 前端登录后，在浏览器控制台执行：
-# localStorage.setItem('api_token', 'your-api-access-token')
-```
-
-不设置 `API_TOKEN` 时，后端不做认证校验（仅适合本地开发）。
-
-### 5. Docker 一键部署
+### Docker
 
 ```bash
-# 确保已配置好 backend/.env
+cp backend/.env.example backend/.env
 docker compose up -d
 ```
 
@@ -113,251 +163,89 @@ docker compose up -d
 |---|---|
 | 前端 | http://localhost:3000 |
 | 后端 | http://localhost:8000 |
-| API 文档 | http://localhost:8000/docs |
 
 ---
 
-## 核心功能
+## ⚙️ 配置
 
-### 📚 知识库管理
-- 创建多个知识库，每个知识库独立管理文档
-- 支持 PDF、TXT、Markdown、DOCX 格式
-- **拖拽上传** + 批量上传，带进度条
-- 智能分块策略：递归分割、Markdown 感知、语义边界
-- 文档内容预览（原文 + 分块视图）
-- 归档 / 恢复 / 永久删除（回收站机制）
+所有环境变量见 `backend/.env.example`，关键项：
 
-### 💬 对话系统
-- 基于知识库内容的 RAG 问答
-- **自由对话模式**：无需知识库，直接与 AI 对话
-- **双模式切换**：苏格拉底式（引导追问） / 直接问答
-- **SSE 流式输出**，逐字呈现回复
-- 每次回答附带引用来源，可展开查看原文片段
-- 对话历史持久化，支持多轮对话
-- 可调节 Top-K 检索数量（3-20）
-
-### ✏️ 对话管理
-- **重命名对话**：内联编辑对话标题
-- **编辑消息**：修改已发送的用户消息
-- **删除消息**：删除消息及其后续回复
-- **重新生成**：流式重新生成 AI 回复
-- **分支对话**：从任意消息节点创建分支
-- **导出对话**：一键复制完整对话为纯文本
-- **孤立对话保护**：删除知识库时保留相关对话
-
-### 🔍 混合检索
-- **BM25 关键词检索**：中文分词（jieba）+ 英文分词
-- **语义向量检索**：基于 ChromaDB 的余弦相似度搜索
-- **RRF 融合**：倒数排位融合，平衡关键词与语义权重
-- **Cross-Encoder 重排序**：BGE-Reranker 精排候选片段
-- **查询重写**：自动将对话上下文转为独立检索查询
-- 跨知识库或知识库内语义搜索
-
-### 🗑️ 回收站
-- 知识库、文档、对话的归档保护（软删除）
-- 恢复或永久删除已归档内容
-- 30 天自动清理策略
-
-### 🎨 三套主题
-- **深邃蓝 (Cosmos)**：暗色学术风，带星空动画背景
-- **晨光白 (Light)**：明亮简洁风
-- **古宣纸 (Xuan)**：仿古宣纸色系，方正仿宋字体
-
-### 🧠 苏格拉底式系统提示词
-
-苏格拉底的教学之道内置于系统提示词中：
-- **追问而非灌输**：层层递进的问题引导发现
-- **从具体升到抽象**：连接底层原理
-- **跨域联结**：数学-音乐、物理-哲学之间的隐喻
-- **知晓无知**：诚实面对不确定性
-- **对话式节奏**：有温度、有停顿、有留白
-
----
-
-## API 端点
-
-### 知识库
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| GET | `/api/collections` | 列出所有知识库 |
-| POST | `/api/collections` | 创建知识库 |
-| GET | `/api/collections/{id}` | 获取单个知识库 |
-| PATCH | `/api/collections/{id}` | 更新知识库 |
-| POST | `/api/collections/{id}/archive` | 归档知识库（软删除） |
-| POST | `/api/collections/{id}/restore` | 恢复知识库 |
-| DELETE | `/api/collections/{id}/permanent` | 永久删除知识库 |
-
-### 文档
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| POST | `/api/documents/upload/{collection_id}` | 上传单个文档 |
-| POST | `/api/documents/upload-batch/{collection_id}` | 批量上传文档 |
-| GET | `/api/documents/collection/{collection_id}` | 列出知识库文档 |
-| GET | `/api/documents/{id}` | 获取文档预览（原文 + 分块） |
-| POST | `/api/documents/{id}/archive` | 归档文档 |
-| POST | `/api/documents/{id}/restore` | 恢复文档 |
-| DELETE | `/api/documents/{id}/permanent` | 永久删除文档 |
-
-### 对话
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| POST | `/api/chat` | RAG 对话（非流式） |
-| POST | `/api/chat/stream` | RAG 对话（SSE 流式） |
-| GET | `/api/conversations/{collection_id}` | 对话列表 |
-| GET | `/api/conversations/free` | 自由对话列表 |
-| GET | `/api/conversations/orphaned` | 孤立对话列表 |
-| GET | `/api/conversations/{collection_id}/{conv_id}` | 获取对话消息 |
-| PATCH | `/api/conversations/{collection_id}/{conv_id}` | 重命名对话 |
-| POST | `/api/conversations/{collection_id}/{conv_id}/archive` | 归档对话 |
-| PUT | `/api/conversations/{collection_id}/{conv_id}/messages/{msg_id}` | 编辑消息 |
-| DELETE | `/api/conversations/{collection_id}/{conv_id}/messages/{msg_id}` | 删除消息及后续 |
-| POST | `/api/conversations/{collection_id}/{conv_id}/messages/{msg_id}/regenerate` | 重新生成回复（SSE） |
-| POST | `/api/conversations/{collection_id}/{conv_id}/branch` | 分支对话 |
-
-### 搜索
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| POST | `/api/search` | 语义搜索 |
-
-### 回收站
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| GET | `/api/trash` | 列出所有归档项 |
-| POST | `/api/trash/collections/{id}/restore` | 恢复归档知识库 |
-| POST | `/api/trash/documents/{id}/restore` | 恢复归档文档 |
-| POST | `/api/trash/conversations/{id}/restore` | 恢复归档对话 |
-| DELETE | `/api/trash/collections/{id}` | 永久删除知识库 |
-| DELETE | `/api/trash/documents/{id}` | 永久删除文档 |
-| DELETE | `/api/trash/conversations/{id}` | 永久删除对话 |
-
-### 系统
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| GET | `/api/system/stats` | 系统统计 |
-| GET | `/api/system/config` | 系统配置 |
-| GET | `/api/system/health` | 健康检查 |
-
----
-
-## 配置参考
-
-所有配置通过环境变量管理，见 `backend/.env.example`：
-
-```env
-# LLM（问答模型）
+```bash
+# LLM（也通过前端设置页面配置，优先级更高）
 LLM_API_BASE=https://api.openai.com/v1
 LLM_API_KEY=sk-your-key-here
-LLM_MODEL=gpt-4o-mini
-LLM_MAX_TOKENS=4096
-LLM_TEMPERATURE=0.7
 
-# Embedding（向量化模型）
+# Embedding
 EMBED_API_BASE=https://api.openai.com/v1
 EMBED_API_KEY=sk-your-key-here
-EMBED_MODEL=text-embedding-3-small
-EMBED_DIMENSIONS=1536
-EMBED_BATCH_SIZE=10
-EMBED_MAX_RETRIES=3
 
-# 数据库
-DATABASE_URL=sqlite+aiosqlite:///./data/Socratess_window.db
-CHROMA_PERSIST_DIR=./data/chroma
-
-# 服务器
-HOST=0.0.0.0
-PORT=8000
-CORS_ORIGINS=http://localhost:5173,http://localhost:3000
-
-# 文档处理
-CHUNK_SIZE=800
-CHUNK_OVERLAP=150
-MAX_DOCUMENT_SIZE_MB=50
+# 检索开关
+HYBRID_SEARCH_ENABLED=true
+RERANKER_ENABLED=true          # 首次启动下载约 1.2GB 模型
+QUERY_REWRITE_ENABLED=true
 ```
-
-支持任何 OpenAI 兼容的 API 服务（如 DeepSeek、智谱、阿里云 DashScope、Ollama 等）。
 
 ---
 
-## 项目结构
+## 🔒 部署安全
+
+部署到公网时，必须在 `backend/.env` 中设置：
+
+```bash
+SECRET_KEY=你的随机字符串    # 用于加密数据库中的 API Key
+API_TOKEN=你的访问令牌       # API 认证令牌
+```
+
+然后在浏览器控制台设置前端令牌：
+
+```js
+localStorage.setItem('api_token', '你的访问令牌')
+```
+
+> ⚠️ 不设置 `API_TOKEN` 时后端不做认证校验，**仅适合本地开发**。
+
+---
+
+## 📁 项目结构
 
 ```
 platos-window/
 ├── docker-compose.yml
-├── README.md
-├── PROJECT.md
 ├── backend/
-│   ├── .env.example
-│   ├── Dockerfile
+│   ├── .env.example              # 环境变量模板
 │   ├── requirements.txt
-│   ├── data/                       # 运行时数据（SQLite + ChromaDB）
+│   ├── data/                     # 运行时数据（gitignored）
 │   └── app/
-│       ├── main.py                 # FastAPI 入口
-│       ├── config.py               # 配置管理
-│       ├── database.py             # 数据库模型 & 迁移
-│       ├── api/
-│       │   ├── chat.py             # 对话 / 搜索 / 对话管理
-│       │   ├── collections.py      # 知识库 CRUD + 归档
-│       │   ├── documents.py        # 文档上传 / 管理 / 预览
-│       │   ├── system.py           # 系统状态 / 配置
-│       │   └── trash.py            # 回收站
-│       ├── schemas/
-│       │   └── schemas.py          # Pydantic 模型
-│       └── services/
-│           ├── rag_service.py      # RAG 编排 + 混合检索
-│           ├── llm_service.py      # LLM 调用 + 查询重写
-│           ├── embedding_service.py # Embedding 调用
-│           ├── document_service.py  # 文档解析
-│           ├── chunking_service.py  # 分块策略
-│           ├── bm25_service.py      # BM25 关键词检索
-│           ├── reranker_service.py  # Cross-Encoder 重排序
-│           └── exceptions.py        # 自定义异常
+│       ├── main.py               # FastAPI 入口
+│       ├── config.py             # 配置管理
+│       ├── database.py           # ORM 模型 + 迁移
+│       ├── api/                  # 路由层
+│       ├── schemas/              # Pydantic 模型
+│       └── services/             # 业务逻辑
 └── frontend/
-    ├── Dockerfile
     ├── nginx.conf
     ├── package.json
-    ├── vite.config.ts
-    ├── tailwind.config.js
     └── src/
-        ├── App.tsx                  # 路由定义
-        ├── main.tsx                 # 入口
-        ├── index.css                # 全局样式 + 三套主题
-        ├── components/
-        │   ├── Layout.tsx           # 侧边栏布局（可折叠）
-        │   ├── ThemeContext.tsx      # 主题上下文
-        │   └── StarField.tsx        # 星空动画背景
-        ├── pages/
-        │   ├── HomePage.tsx         # 首页仪表板
-        │   ├── ChatPage.tsx         # 对话页面（三栏可拖拽布局）
-        │   ├── KnowledgeBasePage.tsx # 知识库管理
-        │   ├── SettingsPage.tsx     # 系统设置（四分区）
-        │   └── TrashPage.tsx        # 回收站
-        ├── services/
-        │   └── api.ts               # API 调用层
-        └── types/
-            └── index.ts             # TypeScript 类型定义
+        ├── pages/                # 页面组件
+        ├── components/           # 通用组件
+        ├── services/             # API 调用层
+        └── types/                # TypeScript 类型
 ```
 
 ---
 
-## 扩展路线
+## 🧭 路线图
 
-- [ ] **知识图谱**：从文档中抽取实体关系，可视化概念网络
-- [ ] **间隔复习**：基于艾宾浩斯遗忘曲线的智能复习推送
-- [ ] **多模态**：图片、视频、音频内容的理解与检索
-- [ ] **协作学习**：多用户知识库共享与讨论
-- [ ] **学习分析**：学习进度追踪、知识掌握度评估
-- [ ] **本地模型**：接入 Ollama 等本地 LLM/Embedding
-- [ ] **多语言增强**：跨语言检索与翻译辅助
-- [ ] **自定义系统提示词**：前端界面编辑苏格拉底的人格
+- [ ] 知识图谱：实体关系抽取与可视化
+- [ ] 间隔复习：基于艾宾浩斯遗忘曲线
+- [ ] 多模态支持：图片 / 视频 / 音频
+- [ ] 学习分析：进度追踪与知识掌握度评估
+- [ ] 本地模型接入（Ollama）
+- [ ] 多语言增强：跨语言检索与翻译
+- [ ] 自定义系统提示词（前端编辑）
 
 ---
 
-## License
+## 📄 许可证
 
-MIT
+[MIT](LICENSE)
