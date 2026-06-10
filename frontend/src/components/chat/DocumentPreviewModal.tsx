@@ -59,28 +59,31 @@ export function DocumentPreviewModal({
     setOrigError('原文件加载失败，可能已被删除')
   }, [])
 
-  if (!previewDoc) return null
-
-  const docId = previewDoc.document_id
-  const fileUrl = getDocumentFileUrl(docId)
-  const fileType = previewDoc.file_type.toLowerCase()
-  const isMd = MARKDOWN_TYPES.has(fileType)
+  // ── Hooks must ALL be called before any conditional return ──
+  const fileType = (previewDoc?.file_type ?? '').toLowerCase()
   const isDocx = fileType === 'docx'
+  const docxFileUrl = isDocx && previewDoc ? getDocumentFileUrl(previewDoc.document_id) : null
+  // DOCX → HTML conversion (only fetches when viewMode==='original' AND isDocx)
+  const {
+    html: docxHtml,
+    loading: docxLoading,
+    error: docxError,
+  } = useDocxPreview(docxFileUrl, viewMode === 'original')
+
+  // Show modal immediately on click (even before API returns) — just with a spinner.
+  if (!previewDoc && !previewLoading) return null
+
+  const docId = previewDoc?.document_id ?? ''
+  const fileUrl = docId ? getDocumentFileUrl(docId) : ''
+  const isMd = MARKDOWN_TYPES.has(fileType)
   const isPptx = fileType === 'pptx'
   const hasSlides = isPptx && previewDoc?.slides && previewDoc.slides.length > 0
   const slides = previewDoc?.slides ?? []
   const previewMode = PLAIN_TEXT_TYPES.has(fileType) ? null : (INLINE_PREVIEW[fileType] ?? false)
 
-  // DOCX → HTML conversion (lazy: only fetches when user switches to original view)
-  const {
-    html: docxHtml,
-    loading: docxLoading,
-    error: docxError,
-  } = useDocxPreview(isDocx ? fileUrl : '', viewMode === 'original')
-
   return (
     <AnimatePresence>
-      {previewDoc && (
+      {(previewDoc || previewLoading) && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -117,9 +120,9 @@ export function DocumentPreviewModal({
                   <FileText size={20} className="text-[var(--accent-blue)]" />
                 </div>
                 <div>
-                  <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>{previewDoc.filename}</h3>
+                  <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>{previewDoc?.filename ?? '加载中...'}</h3>
                   <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                    {previewDoc.file_type.toUpperCase()} · {previewDoc.chunk_count} 个分段
+                    {previewDoc ? `${previewDoc.file_type.toUpperCase()} · ${previewDoc.chunk_count} 个分段` : '正在获取文档...'}
                     {highlightChunkIndex !== null && (
                       <span className="ml-2 px-1.5 py-0.5 rounded text-[var(--accent-blue)]" style={{ background: 'rgba(59,130,246,0.1)' }}>
                         跳转到第 {highlightChunkIndex + 1} 段
@@ -165,16 +168,20 @@ export function DocumentPreviewModal({
                 overflow: (viewMode === 'original' && !isMd && !isDocx && !isPptx) ? 'hidden' : 'auto',
               }}
             >
-              {/* Loading (text view) */}
-              {previewLoading && viewMode === 'text' && (
-                <div className="flex items-center justify-center py-20">
-                  <Loader2 size={24} className="animate-spin" style={{ color: 'var(--text-dim)' }} />
+              {/* ── Text view (chunks) vs Original file view ── */}
+              {/* Use a ternary so the content area NEVER renders empty (prevents white screen) */}
+              {!previewDoc ? (
+                // Modal opened but data not yet loaded — show centered spinner
+                <div className="flex flex-col items-center justify-center py-20 gap-4">
+                  <Loader2 size={32} className="animate-spin" style={{ color: 'var(--accent-blue)' }} />
+                  <p className="text-sm" style={{ color: 'var(--text-muted)' }}>正在加载文档...</p>
                 </div>
-              )}
-
-              {/* Text view: chunks with highlight */}
-              {!previewLoading && viewMode === 'text' && (
-                previewDoc.chunks.length > 0 ? (
+              ) : viewMode === 'text' ? (
+                previewLoading ? (
+                  <div className="flex items-center justify-center py-20">
+                    <Loader2 size={24} className="animate-spin" style={{ color: 'var(--text-dim)' }} />
+                  </div>
+                ) : (previewDoc.chunks?.length ?? 0) > 0 ? (
                   <div className="space-y-4">
                     {previewDoc.chunks.map((chunk: DocumentChunk) => {
                       const isHighlighted = highlightChunkIndex === chunk.index
@@ -218,10 +225,8 @@ export function DocumentPreviewModal({
                     <p className="text-sm" style={{ color: 'var(--text-muted)' }}>无法加载文档内容</p>
                   </div>
                 )
-              )}
-
-              {/* ── Original file view ── */}
-              {viewMode === 'original' && (
+              ) : (
+                /* ── Original file view ── */
                 <div className="h-full flex flex-col">
                   {origError && (
                     <div className="flex flex-col items-center justify-center flex-1 gap-4">

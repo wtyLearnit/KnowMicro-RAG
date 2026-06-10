@@ -75,7 +75,7 @@ export function DocumentPreviewModal({ docId, onClose }: DocumentPreviewModalPro
     html: docxHtml,
     loading: docxLoading,
     error: docxError,
-  } = useDocxPreview(isDocx ? fileUrl : '', activeTab === 'original')
+  } = useDocxPreview(isDocx ? fileUrl : null, activeTab === 'original')
 
   // When user clicks the "原文件" tab, mark loading so we show a brief spinner
   const handleSelectOriginal = () => {

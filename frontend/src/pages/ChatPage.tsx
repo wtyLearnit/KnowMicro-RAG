@@ -493,14 +493,24 @@ export function ChatPage() {
   }
 
   // Scroll to highlighted chunk in document viewer
+  // Use a ref to track the active scroll timeout so we can cancel it on cleanup
+  const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
     if (previewDoc && highlightChunkIndex !== null) {
-      setTimeout(() => {
-        document.getElementById(`doc-chunk-${highlightChunkIndex}`)?.scrollIntoView({
-          behavior: 'smooth',
-          block: 'center',
-        })
-      }, 150)
+      // Wait for the modal's framer-motion entry animation (200ms) to complete
+      // before attempting to scroll, so the DOM layout is stable.
+      scrollTimerRef.current = setTimeout(() => {
+        const el = document.getElementById(`doc-chunk-${highlightChunkIndex}`)
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      }, 250)
+    }
+    return () => {
+      if (scrollTimerRef.current !== null) {
+        clearTimeout(scrollTimerRef.current)
+        scrollTimerRef.current = null
+      }
     }
   }, [previewDoc, highlightChunkIndex])
 
