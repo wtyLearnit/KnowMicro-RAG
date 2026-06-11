@@ -1,5 +1,5 @@
 """
-苏格拉底之窗 - Schedule Service
+KnowMicro - Schedule Service
 Excel/ICS 课表解析 + 日历混合查询
 """
 import re

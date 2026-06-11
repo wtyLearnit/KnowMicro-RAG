@@ -1,6 +1,6 @@
-# 苏格拉底之窗 (Socrates' Window) — 项目说明文档
+# KnowMicro (知微) — 项目说明文档
 
-> 洞穴墙上的投影，经由理性之光折射，成为理念世界的入口。
+> 见微知著，从文档细节中发现知识。
 
 **版本**: 0.1.0 | **许可证**: MIT | **语言**: Python 3.11+ / TypeScript + React 18
 
@@ -8,7 +8,7 @@
 
 ## 一、项目概述
 
-**苏格拉底之窗** 是一个基于 RAG（检索增强生成）的智能学习系统。用户上传学习材料后，可与苏格拉底式的 AI 导师展开对话，实现从被动接收到主动发现的学习体验。
+**KnowMicro** 是一个基于 RAG（检索增强生成）的智能学习系统。用户上传学习材料后，可与 AI 导师展开对话，实现从被动接收到主动发现的学习体验。
 
 ### 核心特性
 
@@ -80,7 +80,7 @@
 
 | 存储 | 用途 | 位置 |
 |---|---|---|
-| SQLite | 元数据（知识库、文档、对话、消息、归档状态） | `backend/data/platos_window.db` |
+| SQLite | 元数据（知识库、文档、对话、消息、归档状态） | `backend/data/knowmicro.db` |
 | ChromaDB | 向量数据（文档分块的 embedding） | `backend/data/chroma/` |
 | BM25 索引 | 关键词检索倒排索引（JSON 持久化） | `backend/data/chroma/bm25_{collection_id}.json` |
 
@@ -89,7 +89,7 @@
 ## 三、项目结构
 
 ```
-platos-window/
+knowmicro/
 ├── docker-compose.yml                   # Docker 编排
 ├── README.md                            # 用户文档
 ├── PROJECT.md                           # 技术文档（本文件）
@@ -523,7 +523,7 @@ EMBED_BATCH_SIZE=10
 EMBED_MAX_RETRIES=3
 
 # 数据库
-DATABASE_URL=sqlite+aiosqlite:///./data/Socratess_window.db
+DATABASE_URL=sqlite+aiosqlite:///./data/knowmicro.db
 CHROMA_PERSIST_DIR=./data/chroma
 
 # 服务器

@@ -1,4 +1,4 @@
-/* 苏格拉底之窗 - API Service */
+/* KnowMicro - API Service */
 import axios from 'axios';
 import type {
   Collection, Document, Conversation, Message,

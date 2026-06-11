@@ -1,5 +1,5 @@
 """
-苏格拉底之窗 - Pydantic Schemas
+KnowMicro - Pydantic Schemas
 """
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any

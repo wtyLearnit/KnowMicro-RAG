@@ -1,5 +1,5 @@
 """
-苏格拉底之窗 - Web Search Service
+KnowMicro - Web Search Service
 Pluggable web search backends: DuckDuckGo (default), Tavily, Brave, Serper.
 """
 from __future__ import annotations
@@ -11,7 +11,7 @@ from typing import List, Optional
 
 from app.config import settings
 
-logger = logging.getLogger("Socratess_window")
+logger = logging.getLogger("knowmicro")
 
 
 @dataclass

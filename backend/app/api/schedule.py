@@ -1,5 +1,5 @@
 """
-苏格拉底之窗 - Schedule API Routes
+KnowMicro - Schedule API Routes
 课程、任务、日程事件的 CRUD + 课表导入 + 日历查询
 """
 from datetime import datetime, timezone

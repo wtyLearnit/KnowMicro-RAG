@@ -1,4 +1,4 @@
-﻿/* 苏格拉底之窗 - Settings Page */
+﻿/* KnowMicro - Settings Page */
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {

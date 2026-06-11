@@ -1,4 +1,4 @@
-/* 苏格拉底之窗 - Calendar Page */
+/* KnowMicro - Calendar Page */
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { CalendarDays } from 'lucide-react'

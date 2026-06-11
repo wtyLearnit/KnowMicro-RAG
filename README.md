@@ -1,9 +1,9 @@
 <p align="center">
-  <h1 align="center">🪟 苏格拉底之窗<br><sub>Socrates' Window</sub></h1>
+  <h1 align="center">KnowMicro<br><sub>知微</sub></h1>
 </p>
 
 <p align="center">
-  <em>洞穴墙上的投影，经由理性之光折射，成为理念世界的入口。</em>
+  <em>见微知著，从文档细节中发现知识。</em>
 </p>
 
 <p align="center">
@@ -15,7 +15,7 @@
 
 ---
 
-一个基于 **RAG**（检索增强生成）的智能学习系统。上传学习材料，与苏格拉底式的 AI 导师对话 —— 追问而非灌输，从具体升到抽象，让知识从被动接收变为主动发现。
+一个基于 **RAG**（检索增强生成）的智能学习系统。上传学习材料，与 AI 导师对话 —— 追问而非灌输，从具体升到抽象，让知识从被动接收变为主动发现。
 
 > 🚀 这是我首次尝试 **Vibe Coding** 的项目，使用 AI 编程工具辅助完成。项目仍在持续迭代中，我也会不断学习如何更好地与 AI 协作构建产品。
 
@@ -125,8 +125,8 @@
 
 ```bash
 # 1. 克隆仓库
-git clone https://github.com/wtyLearnit/Socrates-Window.git
-cd Socrates-Window
+git clone https://github.com/wtyLearnit/KnowMicro.git
+cd KnowMicro
 
 # 2. 配置环境变量
 cp backend/.env.example backend/.env
@@ -210,7 +210,7 @@ localStorage.setItem('api_token', '你的访问令牌')
 ## 📁 项目结构
 
 ```
-platos-window/
+knowmicro/
 ├── docker-compose.yml
 ├── backend/
 │   ├── .env.example              # 环境变量模板

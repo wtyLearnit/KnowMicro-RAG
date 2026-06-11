@@ -1,5 +1,5 @@
 """
-苏格拉底之窗 - 用户模型配置 API
+KnowMicro - 用户模型配置 API
 CRUD + 连接测试 + 获取激活配置 + 获取模型列表 + 批量添加。
 """
 import time
@@ -19,7 +19,7 @@ from app.schemas.schemas import (
 )
 from app.utils.crypto import encrypt_api_key, decrypt_api_key
 
-logger = logging.getLogger("Socratess_window")
+logger = logging.getLogger("knowmicro")
 router = APIRouter(prefix="/api/user/model-configs", tags=["model-configs"])
 
 

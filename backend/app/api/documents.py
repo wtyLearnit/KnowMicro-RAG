@@ -1,5 +1,5 @@
 """
-苏格拉底之窗 - Document API Routes
+KnowMicro - Document API Routes
 """
 import os
 import uuid

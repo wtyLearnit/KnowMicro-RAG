@@ -1,5 +1,5 @@
 """
-苏格拉底之窗 - Application Configuration
+KnowMicro - Application Configuration
 """
 from pathlib import Path
 from pydantic_settings import BaseSettings
@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     embed_max_retries: int = 3
 
     # ── Database ─────────────────────────────────────
-    database_url: str = f"sqlite+aiosqlite:///{_PROJECT_ROOT / 'data' / 'platos_window.db'}"
+    database_url: str = ""  # 在 model_post_init 中动态设置
     chroma_persist_dir: str = str(_PROJECT_ROOT / "data" / "chroma")
 
     # ── Server ───────────────────────────────────────
@@ -111,6 +111,16 @@ class Settings(BaseSettings):
         if not self.secret_key:
             # 自动生成并持久化到文件，确保重启后密钥不变
             self.secret_key = self._load_or_generate_secret_key()
+        if not self.database_url:
+            # 向后兼容：优先使用旧文件名（保留用户数据），回退到新文件名
+            old_db = _PROJECT_ROOT / "data" / "platos_window.db"
+            new_db = _PROJECT_ROOT / "data" / "knowmicro.db"
+            if old_db.exists():
+                self.database_url = f"sqlite+aiosqlite:///{old_db}"
+            elif new_db.exists():
+                self.database_url = f"sqlite+aiosqlite:///{new_db}"
+            else:
+                self.database_url = f"sqlite+aiosqlite:///{new_db}"
 
     @staticmethod
     def _load_or_generate_secret_key() -> str:

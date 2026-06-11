@@ -1,4 +1,4 @@
-/* 苏格拉底之窗 - Home Page */
+/* KnowMicro - Home Page */
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
@@ -98,12 +98,10 @@ export function HomePage() {
           RAG 驱动的智能学习系统
         </motion.div>
         <h1 className="text-4xl lg:text-6xl font-serif font-bold mb-5 leading-tight gradient-text">
-          苏格拉底之窗
+          KnowMicro
         </h1>
         <p className="text-lg font-light max-w-2xl mx-auto leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-          洞穴墙上的投影，经由理性之光折射，成为理念世界的入口。
-          <br />
-          上传你的学习材料，与苏格拉底对话，让知识从被动接收变为主动发现。
+          上传你的学习材料，与 AI 对话，让知识从被动接收变为主动发现。
         </p>
         <div className="mt-10 flex gap-4 justify-center">
           <button

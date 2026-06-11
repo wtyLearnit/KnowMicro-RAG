@@ -1,5 +1,5 @@
 ﻿"""
-苏格拉底之窗 - Collection API Routes
+KnowMicro - Collection API Routes
 """
 from typing import List
 from datetime import datetime, timezone

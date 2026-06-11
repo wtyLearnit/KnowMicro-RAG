@@ -1,4 +1,4 @@
-/* 苏格拉底之窗 - Layout */
+/* KnowMicro - Layout */
 import { useState, useRef, useEffect, type ReactNode } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
@@ -106,7 +106,7 @@ export function Layout({ children }: { children: ReactNode }) {
              style={{ borderColor: 'var(--border-glass)' }}>
           <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'}`}>
             <div className="relative">
-              <img src="/logo.png" alt="苏格拉底之窗"
+              <img src="/logo.png" alt="KnowMicro"
                    className={`rounded-xl object-cover shadow-lg transition-all duration-300 ${isCollapsed ? 'w-9 h-9' : 'w-10 h-10'}`} />
               {/* Logo glow ring */}
               <div className="absolute inset-0 rounded-xl animate-glow-pulse"
@@ -115,10 +115,10 @@ export function Layout({ children }: { children: ReactNode }) {
             {!isCollapsed && (
               <div>
                 <h1 className="font-serif font-bold text-lg leading-tight" style={{ color: 'var(--text-primary)' }}>
-                  苏格拉底之窗
+                  KnowMicro
                 </h1>
                 <p className="text-xs font-light tracking-wider" style={{ color: 'var(--text-muted)' }}>
-                  Socrates&apos;s Window
+                  知微
                 </p>
               </div>
             )}
@@ -237,7 +237,7 @@ export function Layout({ children }: { children: ReactNode }) {
           </button>
           <div className="flex items-center gap-2 text-sm font-light tracking-wide" style={{ color: 'var(--text-muted)' }}>
             <Sparkles size={14} className="text-[var(--accent-blue)] animate-pulse-soft" />
-            苏格拉底之窗
+            知微见著，以问求真
           </div>
         </header>
 

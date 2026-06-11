@@ -1,4 +1,4 @@
-﻿/* 苏格拉底之窗 - Types */
+﻿/* KnowMicro - Types */
 
 export interface Collection {
   id: string;

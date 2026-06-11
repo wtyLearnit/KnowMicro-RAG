@@ -1,5 +1,5 @@
 """
-苏格拉底之窗 - RAG Service
+KnowMicro - RAG Service
 Orchestrates: query rewrite → hybrid retrieval → rerank → generation.
 """
 import asyncio
@@ -16,7 +16,7 @@ from app.services.bm25_service import BM25Service, rrf_fusion
 from app.services.reranker_service import RerankerService
 from app.services.web_search_service import web_search_service, WebSearchResult
 
-logger = logging.getLogger("Socratess_window")
+logger = logging.getLogger("knowmicro")
 
 
 class RAGService:
@@ -39,8 +39,22 @@ class RAGService:
         )
 
     def _get_collection(self, collection_id: str):
+        """获取向量集合，优先使用新前缀，向后兼容旧前缀。"""
+        new_name = f"knowmicro_{collection_id}"
+        old_name = f"platos_window_{collection_id}"
+        try:
+            # 先尝试新前缀
+            return self.client.get_collection(name=new_name)
+        except Exception:
+            pass
+        try:
+            # 回退到旧前缀
+            return self.client.get_collection(name=old_name)
+        except Exception:
+            pass
+        # 都不存在则创建新集合
         return self.client.get_or_create_collection(
-            name=f"platos_window_{collection_id}",
+            name=new_name,
             metadata={"hnsw:space": "cosine"},
         )
 
@@ -101,6 +115,12 @@ class RAGService:
 
     async def delete_collection(self, collection_id: str):
         """Delete an entire vector collection + BM25 index."""
+        # 删除新前缀集合
+        try:
+            self.client.delete_collection(f"knowmicro_{collection_id}")
+        except Exception:
+            pass
+        # 兼容删除旧前缀集合
         try:
             self.client.delete_collection(f"platos_window_{collection_id}")
         except Exception:

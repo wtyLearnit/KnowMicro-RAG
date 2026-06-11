@@ -1,5 +1,5 @@
 ﻿"""
-苏格拉底之窗 - Service Exceptions
+KnowMicro - Service Exceptions
 """
 from typing import Optional
 import httpx

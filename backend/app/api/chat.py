@@ -1,5 +1,5 @@
 """
-苏格拉底之窗 - Chat & Search API Routes
+KnowMicro - Chat & Search API Routes
 """
 from typing import List, Optional, AsyncIterator, Dict, Any
 import json
@@ -22,7 +22,7 @@ from app.services.embedding_service import EmbeddingService
 from app.services.exceptions import ExternalServiceError
 from app.utils.crypto import decrypt_api_key
 
-logger = logging.getLogger("Socratess_window")
+logger = logging.getLogger("knowmicro")
 router = APIRouter(tags=["chat"])
 
 

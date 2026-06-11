@@ -1,5 +1,5 @@
 ﻿"""
-苏格拉底之窗 (Socrates' Window) - Main Application
+KnowMicro - Main Application
 RAG-powered intelligent learning system.
 """
 import logging
@@ -20,7 +20,7 @@ from app.api.system import router as system_router
 from app.api.model_configs import router as model_configs_router
 from app.api.schedule import schedule_router
 
-logger = logging.getLogger("Socratess_window")
+logger = logging.getLogger("knowmicro")
 
 
 @asynccontextmanager
@@ -28,7 +28,7 @@ async def lifespan(app: FastAPI):
     """Startup / shutdown lifecycle."""
     # Startup
     await init_db()
-    logger.info("苏格拉底之窗 已启动")
+    logger.info("KnowMicro 已启动")
     logger.info("LLM: %s", settings.llm_model)
     logger.info("Embed: %s (%dd)", settings.embed_model, settings.embed_dimensions)
     logger.info("文档: http://%s:%d/docs", settings.host, settings.port)
@@ -39,7 +39,7 @@ async def lifespan(app: FastAPI):
         _asyncio.create_task(_warmup_reranker())
     yield
     # Shutdown
-    logger.info("苏格拉底之窗 已停止")
+    logger.info("KnowMicro 已停止")
 
 
 async def _warmup_reranker():
@@ -54,8 +54,8 @@ async def _warmup_reranker():
 
 
 app = FastAPI(
-    title="苏格拉底之窗",
-    description="RAG 驱动的智能学习系统 —— 让知识经由理性之光折射为真知",
+    title="KnowMicro",
+    description="RAG 驱动的智能学习系统 —— 知微见著，见微知著",
     version="0.1.0",
     lifespan=lifespan,
 )
@@ -111,7 +111,7 @@ app.include_router(schedule_router)
 @app.get("/")
 async def root():
     return {
-        "name": "苏格拉底之窗",
+        "name": "KnowMicro",
         "version": "0.1.0",
         "description": "RAG-powered intelligent learning system",
         "docs": "/docs",

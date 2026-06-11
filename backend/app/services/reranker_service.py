@@ -1,11 +1,11 @@
 """
-苏格拉底之窗 - Reranker Service
+KnowMicro - Reranker Service
 Cross-Encoder re-ranking for improved retrieval quality.
 """
 import logging
 from typing import List, Dict, Any
 
-logger = logging.getLogger("Socratess_window")
+logger = logging.getLogger("knowmicro")
 
 
 class RerankerService:

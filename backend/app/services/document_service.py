@@ -1,5 +1,5 @@
 ﻿"""
-苏格拉底之窗 - Document Processing Service
+KnowMicro - Document Processing Service
 Parse documents, extract text, chunk, and prepare for vector storage.
 """
 import io

@@ -1,4 +1,4 @@
-/* 苏格拉底之窗 - App Shell */
+/* KnowMicro - App Shell */
 import { lazy, Suspense } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import { ThemeProvider } from './components/ThemeContext'

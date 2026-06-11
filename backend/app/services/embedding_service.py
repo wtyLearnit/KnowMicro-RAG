@@ -1,5 +1,5 @@
 ﻿"""
-苏格拉底之窗 - Embedding Service
+KnowMicro - Embedding Service
 Supports any OpenAI-compatible embedding API.
 """
 import asyncio
@@ -11,7 +11,7 @@ from app.services.exceptions import (
     ExternalServiceError, extract_api_error, describe_exception as _describe,
 )
 
-logger = logging.getLogger("Socratess_window")
+logger = logging.getLogger("knowmicro")
 
 
 class EmbeddingService:

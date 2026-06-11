@@ -1,4 +1,4 @@
-/* 苏格拉底之窗 - Trash Page (回收站) */
+/* KnowMicro - Trash Page (回收站) */
 import { useEffect, useState } from 'react'
 import { formatSize, formatDate } from '../utils/format'
 import { motion, AnimatePresence } from 'framer-motion'

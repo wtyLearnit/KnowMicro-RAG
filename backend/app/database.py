@@ -1,5 +1,5 @@
 ﻿"""
-苏格拉底之窗 - Database Models (SQLAlchemy)
+KnowMicro - Database Models (SQLAlchemy)
 """
 import uuid
 from datetime import datetime, timezone
@@ -223,7 +223,7 @@ async def _migrate_conversations(conn):
         if col[1] == 'collection_id' and col[3] == 1:
             # collection_id is NOT NULL — need to migrate
             import logging
-            logging.getLogger("Socratess_window").info(
+            logging.getLogger("knowmicro").info(
                 "Migrating conversations table: making collection_id nullable"
             )
             await conn.execute(text("ALTER TABLE conversations RENAME TO conversations_old"))
@@ -264,7 +264,7 @@ async def _migrate_archive_fields(conn):
     """Migrate: add is_archived, archived_at, is_orphaned columns if they don't exist."""
     from sqlalchemy import text
     import logging
-    logger = logging.getLogger("Socratess_window")
+    logger = logging.getLogger("knowmicro")
 
     # Only run migrations on tables that already exist (skip for fresh databases,
     # since create_all will create them with the correct schema)
@@ -310,7 +310,7 @@ async def _migrate_api_key_column():
     """Migrate: rename api_key_encrypted to api_key in user_model_configs."""
     from sqlalchemy import text
     import logging
-    logger = logging.getLogger("Socratess_window")
+    logger = logging.getLogger("knowmicro")
 
     async with engine.begin() as conn:
         if not await _table_exists(conn, "user_model_configs"):
@@ -332,7 +332,7 @@ async def init_db():
     from alembic.config import Config
     from alembic import command
 
-    logger = logging.getLogger("Socratess_window")
+    logger = logging.getLogger("knowmicro")
 
     # Check if alembic_version table exists (tracks applied migrations)
     async with engine.begin() as conn:
@@ -380,7 +380,7 @@ async def _seed_default_model_configs():
     import logging
     from sqlalchemy import select, text as sql_text
 
-    logger = logging.getLogger("Socratess_window")
+    logger = logging.getLogger("knowmicro")
 
     async with async_session() as session:
         # Check if table exists and is empty

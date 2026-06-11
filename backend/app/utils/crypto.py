@@ -1,5 +1,5 @@
 """
-苏格拉底之窗 - API Key 加密工具
+KnowMicro - API Key 加密工具
 使用 Fernet 对称加密保护用户存储的 API Key。
 """
 from cryptography.fernet import Fernet

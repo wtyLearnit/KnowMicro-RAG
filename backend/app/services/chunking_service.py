@@ -1,5 +1,5 @@
 ﻿"""
-苏格拉底之窗 - Chunking Service
+KnowMicro - Chunking Service
 Multiple strategies for splitting text into chunks.
 """
 from typing import List, Callable

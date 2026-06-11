@@ -1,5 +1,5 @@
 """
-苏格拉底之窗 - Trash (回收站) API Routes
+KnowMicro - Trash (回收站) API Routes
 """
 import os
 from pathlib import Path

@@ -1,5 +1,5 @@
 """
-苏格拉底之窗 - BM25 Hybrid Search Service
+KnowMicro - BM25 Hybrid Search Service
 Keyword-based retrieval with BM25 scoring + Chinese tokenization.
 """
 import json
@@ -11,7 +11,7 @@ import numpy as np
 from rank_bm25 import BM25Okapi
 import jieba
 
-logger = logging.getLogger("Socratess_window")
+logger = logging.getLogger("knowmicro")
 
 
 class BM25Service:

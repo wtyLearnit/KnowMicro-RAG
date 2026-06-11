@@ -1,5 +1,5 @@
 """
-苏格拉底之窗 - LLM Service
+KnowMicro - LLM Service
 Supports any OpenAI-compatible chat completion API with streaming.
 """
 from typing import AsyncIterator, List, Dict, Any

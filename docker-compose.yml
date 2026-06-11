@@ -5,7 +5,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: platos-window-backend
+    container_name: knowmicro-backend
     ports:
       - "8000:8000"
     environment:
@@ -30,7 +30,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: platos-window-frontend
+    container_name: knowmicro-frontend
     ports:
       - "3000:80"
     depends_on:

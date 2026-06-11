@@ -1,4 +1,4 @@
-/* 苏格拉底之窗 - Knowledge Base Management Page */
+/* KnowMicro - Knowledge Base Management Page */
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { formatSize } from '../utils/format'
 import { motion, AnimatePresence } from 'framer-motion'

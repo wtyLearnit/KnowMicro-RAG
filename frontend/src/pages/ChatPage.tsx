@@ -1,4 +1,4 @@
-/* 苏格拉底之窗 - Chat Page */
+/* KnowMicro - Chat Page */
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { TOP_K_OPTIONS } from '../utils/constants'
