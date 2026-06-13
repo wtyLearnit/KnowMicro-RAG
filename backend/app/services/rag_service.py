@@ -105,13 +105,13 @@ class RAGService:
         try:
             collection.delete(where={"doc_id": doc_id})
         except Exception:
-            pass
+            logger.warning("Failed to delete vector chunks for doc %s from collection %s", doc_id, collection_id, exc_info=True)
 
         if settings.hybrid_search_enabled:
             try:
                 self.bm25.remove_document(collection_id, doc_id)
             except Exception:
-                pass
+                logger.warning("Failed to remove BM25 index for doc %s from collection %s", doc_id, collection_id, exc_info=True)
 
     async def delete_collection(self, collection_id: str):
         """Delete an entire vector collection + BM25 index."""
@@ -384,6 +384,8 @@ class RAGService:
                 "chunk_text": r["chunk_text"][:300],
                 "score": r["score"],
                 "chunk_index": r.get("chunk_index", 0),
+                "source_type": "kb",
+                "url": "",
             }
             for r in results
         ]

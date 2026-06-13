@@ -16,6 +16,7 @@ interface DocumentPreviewModalProps {
   previewDoc: DocumentPreview | null
   highlightChunkIndex: number | null
   previewLoading: boolean
+  previewError?: string | null
   onClose: () => void
 }
 
@@ -33,6 +34,7 @@ export function DocumentPreviewModal({
   previewDoc,
   highlightChunkIndex,
   previewLoading,
+  previewError,
   onClose,
 }: DocumentPreviewModalProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('text')
@@ -71,7 +73,8 @@ export function DocumentPreviewModal({
   } = useDocxPreview(docxFileUrl, viewMode === 'original')
 
   // Show modal immediately on click (even before API returns) — just with a spinner.
-  if (!previewDoc && !previewLoading) return null
+  // Also show when there's an error so the user sees the error message.
+  if (!previewDoc && !previewLoading && !previewError) return null
 
   const docId = previewDoc?.document_id ?? ''
   const fileUrl = docId ? getDocumentFileUrl(docId) : ''
@@ -120,10 +123,10 @@ export function DocumentPreviewModal({
                   <FileText size={20} className="text-[var(--accent-blue)]" />
                 </div>
                 <div>
-                  <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>{previewDoc?.filename ?? '加载中...'}</h3>
+                  <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>{previewDoc?.filename ?? (previewError ? '无法访问' : '加载中...')}</h3>
                   <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                    {previewDoc ? `${previewDoc.file_type.toUpperCase()} · ${previewDoc.chunk_count} 个分段` : '正在获取文档...'}
-                    {highlightChunkIndex !== null && (
+                    {previewDoc ? `${previewDoc.file_type.toUpperCase()} · ${previewDoc.chunk_count} 个分段` : previewError ? '文档不可用' : '正在获取文档...'}
+                    {highlightChunkIndex !== null && previewDoc && (
                       <span className="ml-2 px-1.5 py-0.5 rounded text-[var(--accent-blue)]" style={{ background: 'rgba(59,130,246,0.1)' }}>
                         跳转到第 {highlightChunkIndex + 1} 段
                       </span>
@@ -133,7 +136,7 @@ export function DocumentPreviewModal({
               </div>
 
               <div className="flex items-center gap-1">
-                {!PLAIN_TEXT_TYPES.has(fileType) && (
+                {previewDoc && !PLAIN_TEXT_TYPES.has(fileType) && (
                   <button
                     onClick={viewMode === 'original' ? switchToText : switchToOriginal}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 hover:bg-[var(--bg-card-hover)]"
@@ -171,11 +174,22 @@ export function DocumentPreviewModal({
               {/* ── Text view (chunks) vs Original file view ── */}
               {/* Use a ternary so the content area NEVER renders empty (prevents white screen) */}
               {!previewDoc ? (
-                // Modal opened but data not yet loaded — show centered spinner
-                <div className="flex flex-col items-center justify-center py-20 gap-4">
-                  <Loader2 size={32} className="animate-spin" style={{ color: 'var(--accent-blue)' }} />
-                  <p className="text-sm" style={{ color: 'var(--text-muted)' }}>正在加载文档...</p>
-                </div>
+                previewError ? (
+                  // Document not found (deleted / unavailable)
+                  <div className="flex flex-col items-center justify-center py-20 gap-4">
+                    <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)' }}>
+                      <AlertTriangle size={28} style={{ color: 'var(--accent-gold)' }} />
+                    </div>
+                    <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{previewError}</p>
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>该文档来源的原始文件已被删除，您仍可查看上方的引用片段</p>
+                  </div>
+                ) : (
+                  // Modal opened but data not yet loaded — show centered spinner
+                  <div className="flex flex-col items-center justify-center py-20 gap-4">
+                    <Loader2 size={32} className="animate-spin" style={{ color: 'var(--accent-blue)' }} />
+                    <p className="text-sm" style={{ color: 'var(--text-muted)' }}>正在加载文档...</p>
+                  </div>
+                )
               ) : viewMode === 'text' ? (
                 previewLoading ? (
                   <div className="flex items-center justify-center py-20">

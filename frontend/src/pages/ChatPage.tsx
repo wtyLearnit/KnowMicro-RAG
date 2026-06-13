@@ -89,6 +89,7 @@ export function ChatPage() {
   const [previewDoc, setPreviewDoc] = useState<DocumentPreview | null>(null)
   const [highlightChunkIndex, setHighlightChunkIndex] = useState<number | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewError, setPreviewError] = useState<string | null>(null)
 
   // ── Model Selection ──
   const [activeModels, setActiveModels] = useState<ActiveConfigs | null>(null)
@@ -482,12 +483,19 @@ export function ChatPage() {
   const handleCitationClick = async (src: SourceItem) => {
     if (!src.doc_id) return
     setPreviewLoading(true)
+    setPreviewError(null)
     setHighlightChunkIndex(src.chunk_index ?? null)
     try {
       const doc = await getDocumentPreview(src.doc_id)
       setPreviewDoc(doc)
-    } catch {
+    } catch (err: any) {
       setPreviewDoc(null)
+      const status = err?.response?.status
+      if (status === 404) {
+        setPreviewError('该文档已被删除，无法查看原文')
+      } else {
+        setPreviewError('加载文档失败，请稍后重试')
+      }
     }
     setPreviewLoading(false)
   }
@@ -1321,7 +1329,8 @@ export function ChatPage() {
         previewDoc={previewDoc}
         highlightChunkIndex={highlightChunkIndex}
         previewLoading={previewLoading}
-        onClose={() => { setPreviewDoc(null); setHighlightChunkIndex(null) }}
+        previewError={previewError}
+        onClose={() => { setPreviewDoc(null); setHighlightChunkIndex(null); setPreviewError(null) }}
       />
     </div>
   )
