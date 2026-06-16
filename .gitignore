@@ -14,6 +14,10 @@ data/
 .claude/
 reasonix.toml
 
+# 个人文档（不推送到仓库）
+期末考核论文.md
+答辩PPT展示内容.md
+
 # IDE
 .vscode/
 .idea/
